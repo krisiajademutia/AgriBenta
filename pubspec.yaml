@@ -1,0 +1,54 @@
+name: agribenta
+description: "A livestock marketplace built with Flutter & Firebase"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"   # You’re on 3.8.1 → this is fine
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # === CORE UI ===
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.10+1
+
+  # === IMAGE PICKER ===
+  image_picker: ^1.1.2
+
+  # === FIREBASE (LATEST STABLE DEC 2025) ===
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.0
+
+  # (Optional but highly recommended later)
+  # firebase_storage: ^12.3.2
+  # provider: ^6.1.2
+  # cached_network_image: ^3.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icons/
+    - assets/images/
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: fonts/Poppins-Bold.ttf
+          weight: 700
+        - asset: fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: fonts/Poppins-Regular.ttf
+          weight: 400

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "242902261216",
+    "project_id": "agribenta-bd182",
+    "storage_bucket": "agribenta-bd182.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:242902261216:android:692c1b28ef418d21285f85",
+        "android_client_info": {
+          "package_name": "com.example.agribenta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB1gA0Uks12KFcO_yYcwZ1sSZRl9Qw3DSM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

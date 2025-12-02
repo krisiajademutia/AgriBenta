@@ -1,0 +1,16 @@
+// lib/models/cart_item.dart
+class CartItem {
+  final String id;
+  final String name;
+  final double price;
+  final String imagePath;
+  int quantity;
+
+  CartItem({
+    required this.id,
+    required this.name,
+    required this.price,
+    required this.imagePath,
+    this.quantity = 1,
+  });
+}
