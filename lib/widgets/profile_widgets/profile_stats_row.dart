@@ -35,8 +35,8 @@ class ProfileStatsRow extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Column(
             children: [
-              Icon(icon, color: const Color(0xFF1E6A3F), size: 32),
-              const SizedBox(height: 8),
+              Icon(icon, color: const Color(0xFF1E6A3F), size: 30),
+              //const SizedBox(height: 5),
               Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0D4C2F))),
               Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ],

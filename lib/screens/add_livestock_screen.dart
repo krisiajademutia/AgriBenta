@@ -22,204 +22,217 @@ class AddLivestockScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0D4C2F),
         foregroundColor: Colors.white,
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- 1. Product Photos (Multiple Photos) ---
-              _buildSectionTitle('Product Photos'),
-              const SizedBox(height: 10),
-              Consumer<LivestockManager>( // Listens to image list changes
-                builder: (context, mgr, child) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Horizontal scrollable list of selected images
-                      SizedBox(
-                        height: 120,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: mgr.tempImageFiles.length + 1, // +1 for the Add button
-                          itemBuilder: (context, index) {
-                            if (index == mgr.tempImageFiles.length) {
-                              return _buildAddPhotoTile(mgr);
-                            }
-                            
-                            return _buildImageTile(mgr, mgr.tempImageFiles[index]);
-                          },
+      body: Container(
+         decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF0D4C2F),
+            Color(0xFF1E6A3F),
+            Color.fromARGB(255, 172, 172, 141),
+          ],
+        ),
+      ),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- 1. Product Photos (Multiple Photos) ---
+                _buildSectionTitle('Product Photos'),
+                const SizedBox(height: 10),
+                Consumer<LivestockManager>( // Listens to image list changes
+                  builder: (context, mgr, child) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Horizontal scrollable list of selected images
+                        SizedBox(
+                          height: 120,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: mgr.tempImageFiles.length + 1, // +1 for the Add button
+                            itemBuilder: (context, index) {
+                              if (index == mgr.tempImageFiles.length) {
+                                return _buildAddPhotoTile(mgr);
+                              }
+                              
+                              return _buildImageTile(mgr, mgr.tempImageFiles[index]);
+                            },
+                          ),
                         ),
-                      ),
-                      if (mgr.tempImageFiles.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8.0),
-                          child: Text('At least one photo is required.', style: TextStyle(color: Colors.red, fontSize: 12)),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 30),
-
-              // --- 2. Basic Details ---
-              _buildSectionTitle('Basic Details'),
-              const SizedBox(height: 15),
-              
-              // Name Input
-              _buildTextField(
-                onChanged: manager.setName,
-                labelText: 'Name / Breed',
-                hintText: 'e.g., Brahman Bull, Rhode Island Red Hen',
-                validator: (value) => value!.isEmpty ? 'Please enter a name.' : null,
-              ),
-              const SizedBox(height: 20),
-              
-              // Price Input (₱ Peso symbol)
-              _buildPriceField(manager.setPrice),
-              const SizedBox(height: 20),
-              
-              // Category Dropdown
-              Consumer<LivestockManager>( // Listens to category list and selected category
-                builder: (context, mgr, child) {
-                  if (mgr.isLoadingCategories) {
-                    return const Center(child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 10.0),
-                      child: LinearProgressIndicator(),
-                    ));
+                        if (mgr.tempImageFiles.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8.0),
+                            child: Text('At least one photo is required.', style: TextStyle(color: Colors.red, fontSize: 12)),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 30),
+        
+                // --- 2. Basic Details ---
+                _buildSectionTitle('Basic Details'),
+                const SizedBox(height: 15),
+                
+                // Name Input
+                _buildTextField(
+                  onChanged: manager.setName,
+                  labelText: 'Name / Breed',
+                  hintText: 'e.g., Brahman Bull, Rhode Island Red Hen',
+                  validator: (value) => value!.isEmpty ? 'Please enter a name.' : null,
+                ),
+                const SizedBox(height: 20),
+                
+                // Price Input (₱ Peso symbol)
+                _buildPriceField(manager.setPrice),
+                const SizedBox(height: 20),
+                
+                // Category Dropdown
+                Consumer<LivestockManager>( // Listens to category list and selected category
+                  builder: (context, mgr, child) {
+                    if (mgr.isLoadingCategories) {
+                      return const Center(child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 10.0),
+                        child: LinearProgressIndicator(),
+                      ));
+                    }
+                    final dynamicCategories = mgr.availableCategories;
+                    return _buildDropdownField(
+                      'Category',
+                      dynamicCategories,
+                      mgr.category, 
+                      (String? newValue) {
+                        if (newValue != null) {
+                          manager.setCategory(newValue);
+                        }
+                      },
+                    );
                   }
-                  final dynamicCategories = mgr.availableCategories;
-                  return _buildDropdownField(
-                    'Category',
-                    dynamicCategories,
-                    mgr.category, 
-                    (String? newValue) {
-                      if (newValue != null) {
-                        manager.setCategory(newValue);
-                      }
-                    },
-                  );
-                }
-              ),
-              const SizedBox(height: 30),
-
-              // --- 3. Specifications ---
-              _buildSectionTitle('Specifications'),
-              const SizedBox(height: 15),
-              
-              // Age and Weight
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildAgeField(manager), 
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: _buildTextField(
-                      onChanged: manager.setWeight,
-                      labelText: 'Weight',
-                      hintText: 'e.g., 200kg, 1.5kg',
-                      validator: (value) => value!.isEmpty ? 'Enter weight.' : null,
+                ),
+                const SizedBox(height: 30),
+        
+                // --- 3. Specifications ---
+                _buildSectionTitle('Specifications'),
+                const SizedBox(height: 15),
+                
+                // Age and Weight
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildAgeField(manager), 
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              
-              // Location Input
-              Consumer<LivestockManager>( // Listens to location updates (e.g., GPS)
-                builder: (context, mgr, child) {
-                  // Keep the TextEditingController in sync with the Manager's state
-                  locationController.text = mgr.location ?? '';
-                  locationController.selection = TextSelection.fromPosition(TextPosition(offset: locationController.text.length));
-                  
-                  return _buildLocationField(
-                    controller: locationController,
-                    onChanged: manager.setLocation,
-                    onGetGps: mgr.isSaving || mgr.isLoadingLocation ? null : () async {
-                      await mgr.getCurrentLocation();
-                      if (mgr.location != 'Location Error') {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Location updated via GPS!')),
-                        );
-                      }
-                    },
-                    isLoading: mgr.isLoadingLocation,
-                    readOnly: mgr.isLoadingLocation,
-                  );
-                }
-              ),
-              
-              const SizedBox(height: 20),
-
-              // --- NEW: Description Input ---
-              _buildTextField(
-                onChanged: manager.setDescription, // Saves to manager state
-                labelText: 'Description',
-                hintText: 'Provide details about the breed, health, feeding habits, etc.',
-                validator: (value) => value!.isEmpty ? 'Please enter a product description.' : null,
-                keyboardType: TextInputType.multiline,
-                maxLines: 4, // Enables multiline input
-              ),
-              
-              const SizedBox(height: 40),
-
-              // --- 4. Submit Button ---
-              Consumer<LivestockManager>( // Listens to isSaving state
-                builder: (context, mgr, child) {
-                  final hasImages = mgr.tempImageFiles.isNotEmpty;
-                  return SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: mgr.isSaving ? null : () async {
-                        if (_formKey.currentState!.validate() && hasImages) {
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: _buildTextField(
+                        onChanged: manager.setWeight,
+                        labelText: 'Weight',
+                        hintText: 'e.g., 200kg, 1.5kg',
+                        validator: (value) => value!.isEmpty ? 'Enter weight.' : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                
+                // Location Input
+                Consumer<LivestockManager>( // Listens to location updates (e.g., GPS)
+                  builder: (context, mgr, child) {
+                    // Keep the TextEditingController in sync with the Manager's state
+                    locationController.text = mgr.location ?? '';
+                    locationController.selection = TextSelection.fromPosition(TextPosition(offset: locationController.text.length));
+                    
+                    return _buildLocationField(
+                      controller: locationController,
+                      onChanged: manager.setLocation,
+                      onGetGps: mgr.isSaving || mgr.isLoadingLocation ? null : () async {
+                        await mgr.getCurrentLocation();
+                        if (mgr.location != 'Location Error') {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Posting listing...')),
-                          );
-                          
-                          final success = await mgr.postListing();
-                          
-                          if (success) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Livestock listed successfully!'),
-                                backgroundColor: Color(0xFF00B761),
-                              ),
-                            );
-                            Navigator.pop(context);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Failed to post. Check required fields and Firebase Storage billing.')),
-                            );
-                          }
-                        } else if (!hasImages) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please select at least one image for your listing.')),
+                            const SnackBar(content: Text('Location updated via GPS!')),
                           );
                         }
                       },
-                      icon: const Icon(Icons.check_circle_outline, size: 28),
-                      label: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12.0),
-                        child: mgr.isSaving
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('POST LISTING', style: TextStyle(fontSize: 18)),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00B761),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      isLoading: mgr.isLoadingLocation,
+                      readOnly: mgr.isLoadingLocation,
+                    );
+                  }
+                ),
+                
+                const SizedBox(height: 20),
+        
+                // --- NEW: Description Input ---
+                _buildTextField(
+                  onChanged: manager.setDescription, // Saves to manager state
+                  labelText: 'Description',
+                  hintText: 'Provide details about the breed, health, feeding habits, etc.',
+                  validator: (value) => value!.isEmpty ? 'Please enter a product description.' : null,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 4, // Enables multiline input
+                ),
+                
+                const SizedBox(height: 40),
+        
+                // --- 4. Submit Button ---
+                Consumer<LivestockManager>( // Listens to isSaving state
+                  builder: (context, mgr, child) {
+                    final hasImages = mgr.tempImageFiles.isNotEmpty;
+                    return SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: mgr.isSaving ? null : () async {
+                          if (_formKey.currentState!.validate() && hasImages) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Posting listing...')),
+                            );
+                            
+                            final success = await mgr.postListing();
+                            
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Livestock listed successfully!'),
+                                  backgroundColor: Color(0xFF00B761),
+                                ),
+                              );
+                              Navigator.pop(context);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Failed to post. Check required fields and Firebase Storage billing.')),
+                              );
+                            }
+                          } else if (!hasImages) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please select at least one image for your listing.')),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.check_circle_outline, size: 28),
+                        label: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12.0),
+                          child: mgr.isSaving
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('POST LISTING', style: TextStyle(fontSize: 18)),
                         ),
-                        elevation: 5,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B761),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 5,
+                        ),
                       ),
-                    ),
-                  );
-                }
-              ),
-              const SizedBox(height: 30),
-            ],
+                    );
+                  }
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),

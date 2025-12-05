@@ -5,7 +5,7 @@ import 'package:agribenta/widgets/home_widgets/home_section_search.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_categories.dart';
 import 'package:agribenta/screens/notification_screen.dart';
 import 'package:agribenta/screens/cart_screen.dart';
-import 'package:agribenta/screens/profile_screen.dart'; // ⬅️ NEW IMPORT
+import 'package:agribenta/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,7 +17,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   int notificationCount = 5;
 
-  // This controls the category filter, only used on the Home tab (index 0)
   String _selectedCategoryName = 'All';
 
   void _updateSelectedCategory(String newCategoryName) {
@@ -31,19 +30,26 @@ class _HomeScreenState extends State<HomeScreen> {
       selectedCategoryName: _selectedCategoryName,
       updateSelectedCategory: _updateSelectedCategory,
     ),
-    // Placeholder screens for other tabs
     const Center(child: Text("Message Screen Content", style: TextStyle(color: Colors.white, fontSize: 20))), 
     const Center(child: Text("Transactions Screen Content", style: TextStyle(color: Colors.white, fontSize: 20))), 
-    const ProfileScreen(), // ⬅️ The new Profile screen
+    const ProfileScreen(), // Index 3: Profile screen
   ];
 
   @override
   Widget build(BuildContext context) {
-    final isHomeTab = _selectedIndex == 0;  
-    return Scaffold(
-      backgroundColor: isHomeTab ? const Color(0xFF0D4C2F) : const Color(0xFFF5F5DC),
+    final isHomeTab = _selectedIndex == 0;
+    final isProfileTab = _selectedIndex == 3;
 
-      appBar: AppBar(
+    // 🚨 FIX: Determine the background color. Dark green for Home (0) and Profile (3).
+    final scaffoldBackgroundColor = 
+        (isHomeTab || isProfileTab) ? const Color(0xFF0D4C2F) : const Color(0xFFF5F5DC);
+
+    return Scaffold(
+      // 🚨 UPDATED: Use the new logic to set the background color
+      backgroundColor: scaffoldBackgroundColor,
+
+      // Hide AppBar entirely if on the Profile tab (index 3)
+      appBar: isProfileTab ? null : AppBar(
         elevation: 0,
         automaticallyImplyLeading: false,
         backgroundColor: isHomeTab ? Colors.transparent : const Color(0xFF0D4C2F),
@@ -58,8 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
-          // Notifications are still visible on all screens
-          _buildNotificationIcon(context),
+          _buildNotificationIcon(context, isHomeTab), 
           IconButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
             icon: Icon(Icons.shopping_cart_outlined, color: isHomeTab ? Colors.yellow : Colors.white, size: 28),
@@ -104,14 +109,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildNotificationIcon(BuildContext context) {
+  Widget _buildNotificationIcon(BuildContext context, bool isHomeTab) {
+    final iconColor = isHomeTab ? Colors.yellow : Colors.white;
+
     return Stack(
       children: [
         IconButton(
           onPressed: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen()));
           },
-          icon: const Icon(Icons.notifications_outlined, color: Colors.yellow, size: 28),
+          icon: Icon(Icons.notifications_outlined, color: iconColor, size: 28),
         ),
         if (notificationCount > 0)
           Positioned(
@@ -197,7 +204,6 @@ class _HomeContent extends StatelessWidget {
                   return FadeTransition(opacity: animation, child: child);
                 },
                 child: LivestockFilterWrapper(
-                  // The key forces the widget to be replaced when the category changes.
                   key: ValueKey('livestock-wrapper-$selectedCategoryName'), 
                   selectedCategoryName: selectedCategoryName,
                 ),

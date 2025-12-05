@@ -1,7 +1,6 @@
 // lib/widgets/profile_widgets/profile_header.dart
+
 import 'package:flutter/material.dart';
-import '../../screens/edit_profile_screen.dart'; // ADD THIS IMPORT
-import '../../screens/add_livestock_screen.dart';   // if not already imported
 
 class ProfileHeader extends StatelessWidget {
   final String name;
@@ -9,6 +8,11 @@ class ProfileHeader extends StatelessWidget {
   final String profileImageUrl;
   final VoidCallback onEditProfile;
   final VoidCallback onPostListing;
+  // NEW: Added Logout and Settings callbacks
+  final VoidCallback onLogout;
+  final VoidCallback onSettings;
+  // NEW: Flag to control button visibility
+  final bool isSellerMode; 
 
   const ProfileHeader({
     super.key,
@@ -17,57 +21,88 @@ class ProfileHeader extends StatelessWidget {
     required this.profileImageUrl,
     required this.onEditProfile,
     required this.onPostListing,
+    required this.onLogout, // Required
+    required this.onSettings, // Required
+    required this.isSellerMode, // Required
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20, top: 10),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0D4C2F),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
+      margin: EdgeInsets.only(left: 10, right: 10, top: 20),
+      padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20, top: 20), // Adjusted top padding for SafeArea
+      decoration: BoxDecoration(
+        //color: Color(0xFF0D4C2F),
+        color:  Color.fromARGB(255, 172, 172, 141),
+        borderRadius: BorderRadius.circular(30.0)
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, // Align content to start
         children: [
+          // Row for Profile Avatar and Info
           Row(
             children: [
               CircleAvatar(
-                radius: 40,
+                radius: 25, // Reduced size for better fit
                 backgroundColor: const Color(0xFF1E6A3F),
                 backgroundImage: profileImageUrl.isNotEmpty
-                    ? NetworkImage(profileImageUrl)
+                    ? NetworkImage(profileImageUrl) as ImageProvider
                     : null,
                 onBackgroundImageError: profileImageUrl.isNotEmpty ? (_, __) {} : null,
                 child: profileImageUrl.isEmpty
-                    ? const Icon(Icons.person, size: 40, color: Colors.white70)
+                    ? const Icon(Icons.person, size: 25, color: Color(0xFF0D4C2F))
                     : null,
               ),
-              const SizedBox(width: 15),
+              const SizedBox(width: 10),
+              
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    // Row to hold Name and Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0D4C2F),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        
+                        // settings and logout button (Kept beside username)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.settings, color: Colors.black),
+                              onPressed: onSettings,
+                              tooltip: 'Settings',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.logout, color: Colors.redAccent),
+                              onPressed: onLogout,
+                              tooltip: 'Logout',
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
+                    // Location Row
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: Colors.white70, size: 16),
+                        const Icon(Icons.location_on, color: Color(0xFF0D4C2F), size: 16),
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             location,
-                            style: const TextStyle(color: Colors.white70, fontSize: 14),
+                            style: const TextStyle(color: Color(0xFF0D4C2F), fontSize: 14),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -78,7 +113,10 @@ class ProfileHeader extends StatelessWidget {
               ),
             ],
           ),
+          
           const SizedBox(height: 20),
+          
+          // Edit Profile / Post Listing Buttons
           Row(
             children: [
               Expanded(
@@ -91,7 +129,9 @@ class ProfileHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
+              
+              // CONDITIONAL: Only show Post Listing in Seller Mode
+              if (isSellerMode) Expanded(
                 child: _buildButton(
                   icon: Icons.add_business,
                   label: 'Post Listing',

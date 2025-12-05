@@ -1,7 +1,7 @@
 // lib/screens/login_screen.dart (SECURE VERSION)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
-import 'package:firebase_auth/firebase_auth.dart'; // <--- 1. NEW: FIREBASE AUTH IMPORT
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'dart:math';
 
 class LoginScreen extends StatefulWidget {
@@ -66,7 +66,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       
       String message = "An error occurred during login.";
       
-      // Provide user-friendly error messages based on Auth codes
       if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
         message = "❌ Invalid email or password. Please check your credentials.";
       } else if (e.code == 'invalid-email') {
@@ -78,7 +77,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
       
     } catch (e) {
-      // 5. Generic network or other error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("❌ Error: ${e.toString()}"), backgroundColor: Colors.red),
