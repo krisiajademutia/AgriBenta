@@ -1,15 +1,17 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; 
 import 'screens/get_started_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/profile_manager.dart'; 
+import 'services/livestock_manager.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // SIMPLE & WORKS EVERYWHERE — no import needed
   await Firebase.initializeApp();
 
   // Firestore offline support
@@ -18,7 +20,19 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  runApp(const AgriBentaApp());
+  // 3. 🎯 CRITICAL CHANGE: Use MultiProvider
+  runApp(
+    // MultiProvider allows you to register more than one ChangeNotifier
+    MultiProvider(
+      providers: [
+        // Register the Profile Manager
+        ChangeNotifierProvider(create: (_) => ProfileManager()), 
+        // Register the new Livestock Manager
+        ChangeNotifierProvider(create: (_) => LivestockManager()), 
+      ],
+      child: const AgriBentaApp(),
+    ),
+  );
 }
 
 class AgriBentaApp extends StatelessWidget {
@@ -48,5 +62,5 @@ class AgriBentaApp extends StatelessWidget {
         '/home': (_) => const HomeScreen(),
       },
     );
-  }
+  } 
 }

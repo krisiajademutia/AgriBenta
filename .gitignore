@@ -24,3 +24,5 @@ ios/build/
 .vscode/
 *.iml
 .DS_Store
+
+*.log
