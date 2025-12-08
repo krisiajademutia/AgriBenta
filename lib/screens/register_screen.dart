@@ -1,7 +1,7 @@
-// lib/screens/register_screen.dart (SECURE VERSION)
+// lib/screens/register_screen.dart (SECURE + PHONE NUMBER ADDED)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
-import 'package:firebase_auth/firebase_auth.dart'; // <--- 1. NEW: FIREBASE AUTH IMPORT
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
 
 class RegisterScreen extends StatefulWidget {
@@ -16,7 +16,8 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
   final _confirmController = TextEditingController();
-  
+  final _phoneController = TextEditingController(); // ← ADDED
+
   bool _isLoading = false;
   late AnimationController _controller;
 
@@ -33,18 +34,18 @@ class _RegisterScreenState extends State<RegisterScreen>
     _emailController.dispose();
     _passController.dispose();
     _confirmController.dispose();
+    _phoneController.dispose(); // ← ADDED
     super.dispose();
   }
 
-  // --- 🧠 THE BRAIN: FIXED SECURE REGISTER LOGIC ---
   Future<void> _register() async {
-    // 1. Basic Validation
     if (_nameController.text.isEmpty || 
         _emailController.text.isEmpty || 
         _passController.text.isEmpty ||
+        _phoneController.text.trim().length < 10 ||
         _passController.text != _confirmController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please check fields/passwords"), backgroundColor: Colors.orange),
+        const SnackBar(content: Text("Please fill all fields & match passwords"), backgroundColor: Colors.orange),
       );
       return;
     }
@@ -52,52 +53,47 @@ class _RegisterScreenState extends State<RegisterScreen>
     setState(() => _isLoading = true);
 
     try {
-      // 2. CREATE USER SESSION WITH FIREBASE AUTH (Handles password securely!)
       final UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passController.text.trim(),
       );
 
-      // 3. SAVE ADDITIONAL USER DATA TO FIRESTORE (Linked by the new user's UID)
-      // NOTE: We no longer save the password here!
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(userCredential.user!.uid) // Use the secure UID as the document ID
+          .doc(userCredential.user!.uid)
           .set({
             'name': _nameController.text.trim(),
             'email': _emailController.text.trim(),
+            'phone': _phoneController.text.trim(),           // ← ADDED
+            'location': 'Unknown Location',                  // ← Default
+            'profileImageUrl': '',                           // ← Default
             'role': 'Farmer', 
             'created_at': Timestamp.now(), 
           });
       
       if (!mounted) return;
 
-      // 4. Success & Navigation
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Account Created Successfully!"), backgroundColor: Colors.green),
+        const SnackBar(content: Text("Account Created Successfully!"), backgroundColor: Colors.green),
       );
       
-      // Go to Home Screen
       Navigator.pushReplacementNamed(context, '/home');
 
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      // Handle Auth specific errors (weak password, email already in use)
       String message = "An error occurred during registration.";
       if (e.code == 'weak-password') {
-        message = "❌ The password provided is too weak (must be 6+ characters).";
+        message = "The password provided is too weak (must be 6+ characters).";
       } else if (e.code == 'email-already-in-use') {
-        message = "❌ An account already exists for that email.";
+        message = "An account already exists for that email.";
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
-
     } catch (e) {
       if (!mounted) return;
-      // Generic Error Handling
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Error: ${e.toString()}"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Error: ${e.toString()}"), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -106,7 +102,6 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Keep your existing build method UI (it looks great!)
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -114,18 +109,17 @@ class _RegisterScreenState extends State<RegisterScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF2C2218),   // Deep Café Noir
-              Color(0xFF2E4F2A),   // Strong Kombu Green
+              Color(0xFF2C2218),
+              Color(0xFF2E4F2A),
               Color(0xFF1A3A1F),
               Color(0xFF2E4F2A),
-              Color(0xFFE9D7C4),   // Bone
+              Color(0xFFE9D7C4),
             ],
             stops: [0.0, 0.3, 0.6, 0.85, 1.0],
           ),
         ),
         child: Stack(
           children: [
-            // Floating background (Keep your design!)
             AnimatedBuilder(
               animation: _controller,
               builder: (_, __) => CustomPaint(
@@ -134,44 +128,33 @@ class _RegisterScreenState extends State<RegisterScreen>
               ),
             ),
 
-            // Register Form
             SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
                 child: Column(
                   children: [
                     const SizedBox(height: 60),
-
-                    // Logo Container
                     Container(
-                      width: 200,
-                      height: 200,
+                      width: 200, height: 200,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: const Color(0xFF2E4F2A).withOpacity(0.95),
                         border: Border.all(color: Colors.white, width: 4),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black54, blurRadius: 25, offset: const Offset(0, 10)),
-                        ],
+                        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 25, offset: const Offset(0, 10))],
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(30),
                         child: Image.asset('assets/icons/livestock.png', color: Colors.white),
                       ),
                     ),
-
                     const SizedBox(height: 30),
-
                     const Text("AgriBenta", style: TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                     const Text("Create your account", style: TextStyle(fontSize: 18, color: Colors.white70)),
-
                     const SizedBox(height: 50),
 
                     // Full Name
-                    TextField(controller: _nameController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: "Full Name", hintStyle: const TextStyle(color: Colors.white60),
+                    TextField(controller: _nameController, style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(hintText: "Full Name", hintStyle: const TextStyle(color: Colors.white60),
                         filled: true, fillColor: Colors.white.withOpacity(0.2),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                         prefixIcon: const Icon(Icons.person_outline, color: Colors.white),
@@ -180,11 +163,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                     const SizedBox(height: 20),
 
                     // Email
-                    TextField(controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
+                    TextField(controller: _emailController, keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: "Email", hintStyle: const TextStyle(color: Colors.white60),
+                      decoration: InputDecoration(hintText: "Email", hintStyle: const TextStyle(color: Colors.white60),
                         filled: true, fillColor: Colors.white.withOpacity(0.2),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                         prefixIcon: const Icon(Icons.email_outlined, color: Colors.white),
@@ -192,11 +173,21 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                     const SizedBox(height: 20),
 
+                    // Phone Number ← ADDED
+                    TextField(controller: _phoneController, keyboardType: TextInputType.phone,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(hintText: "Phone Number (e.g. 09123456789)", hintStyle: const TextStyle(color: Colors.white60),
+                        filled: true, fillColor: Colors.white.withOpacity(0.2),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                        prefixIcon: const Icon(Icons.phone_outlined, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
                     // Password
                     TextField(controller: _passController, obscureText: true,
                       style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: "Password", hintStyle: const TextStyle(color: Colors.white60),
+                      decoration: InputDecoration(hintText: "Password", hintStyle: const TextStyle(color: Colors.white60),
                         filled: true, fillColor: Colors.white.withOpacity(0.2),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                         prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
@@ -207,8 +198,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                     // Confirm Password
                     TextField(controller: _confirmController, obscureText: true,
                       style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: "Confirm Password", hintStyle: const TextStyle(color: Colors.white60),
+                      decoration: InputDecoration(hintText: "Confirm Password", hintStyle: const TextStyle(color: Colors.white60),
                         filled: true, fillColor: Colors.white.withOpacity(0.2),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                         prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
@@ -216,10 +206,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                     const SizedBox(height: 40),
 
-                    // Register Button (Now Wired Up!)
                     SizedBox(
-                      width: double.infinity,
-                      height: 58,
+                      width: double.infinity, height: 58,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
@@ -227,7 +215,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                           elevation: 15,
                         ),
-                        onPressed: _isLoading ? null : _register, // <--- Triggers the secure logic
+                        onPressed: _isLoading ? null : _register,
                         child: _isLoading 
                             ? const CircularProgressIndicator(color: Color(0xFF2E4F2A))
                             : const Text("Register", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
@@ -248,6 +236,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 }
 
+// FloatingLivestockPainter remains unchanged (keep your original)
 class FloatingLivestockPainter extends CustomPainter {
   final double animationValue;
   FloatingLivestockPainter(this.animationValue);

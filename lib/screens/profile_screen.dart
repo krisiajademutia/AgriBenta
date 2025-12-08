@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
-import '../models/livestock_model.dart'; 
+import '../models/livestock_model.dart';
 import '../widgets/profile_widgets/profile_header.dart';
 import '../widgets/profile_widgets/profile_stats_row.dart';
 import '../widgets/profile_widgets/profile_listings_tab.dart';
@@ -18,11 +18,12 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // State variable to manage the view mode. Default to false (Buyer Mode).
-  bool _isSellerMode = false; 
+  bool _isSellerMode = false;
 
   // Function to toggle the mode
   void _toggleSellerMode() {
@@ -51,7 +52,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         .orderBy('postedAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Livestock.fromSnapshot(doc.id, doc.data() as Map<String, dynamic>))
+            .map((doc) => Livestock.fromSnapshot(
+                doc.id, doc.data() as Map<String, dynamic>))
             .toList());
   }
 
@@ -67,11 +69,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: Icon(icon, color: const Color(0xFF0D4C2F), size: 30),
-        title: Text(
-          title, 
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+        title: Text(title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        trailing:
+            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
         onTap: onTap,
       ),
     );
@@ -97,59 +98,60 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               .doc(currentUser.uid)
               .snapshots(),
           builder: (context, userSnapshot) {
-            
             if (!userSnapshot.hasData || userSnapshot.data == null) {
-                return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator());
             }
 
             final userModel = UserModel.fromSnapshot(userSnapshot.data!);
-            
+
             return StreamBuilder<List<Livestock>>(
               stream: _fetchUserListings(currentUser.uid),
               builder: (context, listingsSnapshot) {
-                
-                final List<Livestock> userListings = listingsSnapshot.data ?? [];
-                
-                final int totalListings = userListings.length; 
-                const int totalSales = 0; 
+                final List<Livestock> userListings =
+                    listingsSnapshot.data ?? [];
+
+                final int totalListings = userListings.length;
+                const int totalSales = 0;
                 const double totalEarnings = 0.0;
 
                 return Scaffold(
-                body: Container(
-                  decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF0D4C2F),
-                      Color(0xFF1E6A3F),
-                      Color.fromARGB(255, 172, 172, 141),
-                    ],
-                  ),
-                ),
-                    child: SafeArea( 
+                  body: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF0D4C2F),
+                          Color(0xFF1E6A3F),
+                          Color.fromARGB(255, 172, 172, 141),
+                        ],
+                      ),
+                    ),
+                    child: SafeArea(
                       child: NestedScrollView(
                         headerSliverBuilder: (context, innerBoxIsScrolled) => [
                           SliverToBoxAdapter(
                             child: ProfileHeader(
                               name: userModel.name,
                               location: userModel.location,
+                              phone: userModel.phone,
                               profileImageUrl: userModel.profileImageUrl,
                               onEditProfile: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                                MaterialPageRoute(
+                                    builder: (_) => const EditProfileScreen()),
                               ),
                               onPostListing: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const AddLivestockScreen()),
+                                MaterialPageRoute(
+                                    builder: (_) => const AddLivestockScreen()),
                               ),
                               onLogout: () async {
                                 await FirebaseAuth.instance.signOut();
-                                if (mounted) Navigator.pushReplacementNamed(context, '/login');
+                                if (mounted)
+                                  Navigator.pushReplacementNamed(
+                                      context, '/login');
                               },
-                              onSettings: () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Settings clicked")),
-                              ),
                               isSellerMode: _isSellerMode,
                             ),
                           ),
@@ -157,17 +159,28 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           // Mode Toggle Button (Visible in both modes)
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20.0, vertical: 10.0),
                               child: OutlinedButton.icon(
                                 onPressed: _toggleSellerMode,
-                                icon: Icon(_isSellerMode ? Icons.shopping_basket_outlined : Icons.storefront, color: const Color(0xFF1E6A3F)),
+                                icon: Icon(
+                                    _isSellerMode
+                                        ? Icons.shopping_basket_outlined
+                                        : Icons.storefront,
+                                    color: const Color(0xFF1E6A3F)),
                                 label: Text(
-                                  _isSellerMode ? 'Switch to Buyer Mode' : 'Start Selling',
-                                  style: const TextStyle(color: Color(0xFF1E6A3F), fontWeight: FontWeight.bold),
+                                  _isSellerMode
+                                      ? 'Switch to Buyer Mode'
+                                      : 'Start Selling',
+                                  style: const TextStyle(
+                                      color: Color(0xFF1E6A3F),
+                                      fontWeight: FontWeight.bold),
                                 ),
                                 style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Color(0xFF1E6A3F), width: 1.5),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side: const BorderSide(
+                                      color: Color(0xFF1E6A3F), width: 1.5),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
                                   backgroundColor: Colors.white,
                                 ),
                               ),
@@ -178,16 +191,19 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           if (_isSellerMode) ...[
                             SliverToBoxAdapter(
                               child: ProfileStatsRow(
-                                totalListings: totalListings, 
-                                totalSales: totalSales,       
-                                totalEarnings: totalEarnings, 
+                                totalListings: totalListings,
+                                totalSales: totalSales,
+                                totalEarnings: totalEarnings,
                               ),
                             ),
                             SliverPersistentHeader(
                               delegate: _SliverAppBarDelegate(
                                 TabBar(
                                   controller: _tabController,
-                                  tabs: const [Tab(text: 'My Listings'), Tab(text: 'Reviews')],
+                                  tabs: const [
+                                    Tab(text: 'My Listings'),
+                                    Tab(text: 'Reviews')
+                                  ],
                                   labelColor: const Color(0xFF0D4C2F),
                                   indicatorColor: const Color(0xFF1E6A3F),
                                 ),
@@ -196,9 +212,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             ),
                           ],
                         ],
-                        
+
                         // CONDITIONAL: Show content based on mode
-                        body: _isSellerMode 
+                        body: _isSellerMode
                             ? TabBarView(
                                 controller: _tabController,
                                 children: [
@@ -208,31 +224,29 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                       listings: userListings,
                                       onAddListing: () => Navigator.push(
                                         context,
-                                        MaterialPageRoute(builder: (_) => const AddLivestockScreen()),
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const AddLivestockScreen()),
                                       ),
-                                    ),
-                                  ),
-                                  KeyedSubtree(
-                                    key: const ValueKey('reviews-tab'),
-                                    child: const SizedBox.expand(
-                                      child: Center(child: Text("Reviews coming soon...")),
                                     ),
                                   ),
                                 ],
                               )
-                            : Column( // Buyer Mode Content (My Orders, Saved Items)
+                            : ListView(
+                                // Buyer Mode Content (My Orders, Saved Items)
+                                padding: EdgeInsets.zero,
                                 children: [
                                   const Padding(
-                                    padding: EdgeInsets.only(top: 20.0, bottom: 5.0, left: 20.0),
+                                    padding: EdgeInsets.only(
+                                        top: 20.0, bottom: 5.0, left: 20.0),
                                     child: Align(
                                       alignment: Alignment.centerLeft,
                                       child: Text(
                                         "Buyer Actions",
                                         style: TextStyle(
-                                          fontSize: 18, 
-                                          fontWeight: FontWeight.bold, 
-                                          color: Color(0xFF0D4C2F)
-                                        ),
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF0D4C2F)),
                                       ),
                                     ),
                                   ),
@@ -240,8 +254,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                     title: 'My Orders',
                                     icon: Icons.receipt_long,
                                     onTap: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Navigating to My Orders')),
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                'Navigating to My Orders')),
                                       );
                                     },
                                   ),
@@ -249,11 +266,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                     title: 'Saved Items',
                                     icon: Icons.favorite_border,
                                     onTap: () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Navigating to Saved Items')),
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content: Text(
+                                                'Navigating to Saved Items')),
                                       );
                                     },
                                   ),
+                                  const SizedBox(height: 24),
                                 ],
                               ),
                       ),
@@ -280,7 +301,8 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => _tabBar.preferredSize.height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       color: const Color.fromARGB(255, 172, 172, 141),
       child: _tabBar,
