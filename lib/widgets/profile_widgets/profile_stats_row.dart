@@ -18,29 +18,59 @@ class ProfileStatsRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       child: Row(
         children: [
-          _buildStat('Listings', totalListings.toString(), Icons.layers_outlined),
-          _buildStat('Sales', totalSales.toString(), Icons.shopping_bag_outlined),
-          _buildStat('Earnings', '₱${totalEarnings.toStringAsFixed(0)}', Icons.monetization_on_outlined),
+          _buildStat(
+              'Listings', totalListings.toString(), Icons.layers_outlined),
+          const SizedBox(width: 12),
+          _buildStat(
+              'Sales', totalSales.toString(), Icons.shopping_bag_outlined),
+          const SizedBox(width: 12),
+          _buildStat('Earnings', '₱${totalEarnings.toStringAsFixed(0)}',
+              Icons.monetization_on_outlined),
         ],
       ),
     );
   }
 
   Widget _buildStat(String title, String value, IconData icon) {
+    const Color textDark = Color(0xFF1B4332);
+    const Color brandGreen = Color(0xFF52B788);
+
     return Expanded(
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            children: [
-              Icon(icon, color: const Color(0xFF1E6A3F), size: 30),
-              //const SizedBox(height: 5),
-              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0D4C2F))),
-              Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white, // White Card
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: textDark.withOpacity(0.08), // Soft Shadow
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: brandGreen, size: 28), // Brand Green Icon
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: textDark, // Dark Text
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500, // Grey Label
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );

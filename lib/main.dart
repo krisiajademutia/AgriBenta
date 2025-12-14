@@ -1,17 +1,22 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; 
+import 'package:provider/provider.dart';
+
+// Screens
 import 'screens/get_started_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
-import 'services/profile_manager.dart'; 
-import 'services/livestock_manager.dart'; 
+import 'screens/splash_screen.dart';
+
+// Services
+import 'services/profile_manager.dart';
+import 'services/livestock_manager.dart';
+import 'services/user_role_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
   await Firebase.initializeApp();
 
   // Firestore offline support
@@ -20,15 +25,12 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // 3. 🎯 CRITICAL CHANGE: Use MultiProvider
   runApp(
-    // MultiProvider allows you to register more than one ChangeNotifier
     MultiProvider(
       providers: [
-        // Register the Profile Manager
-        ChangeNotifierProvider(create: (_) => ProfileManager()), 
-        // Register the new Livestock Manager
-        ChangeNotifierProvider(create: (_) => LivestockManager()), 
+        ChangeNotifierProvider(create: (_) => ProfileManager()),
+        ChangeNotifierProvider(create: (_) => LivestockManager()),
+        ChangeNotifierProvider(create: (_) => UserRoleManager()),
       ],
       child: const AgriBentaApp(),
     ),
@@ -46,21 +48,29 @@ class AgriBentaApp extends StatelessWidget {
       theme: ThemeData(
         fontFamily: 'Poppins',
         useMaterial3: true,
+
+        // --- UPDATED THEME TO MATCH NEW SCREENS ---
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E8B57),
-          primary: const Color(0xFF2E8B57),
-          secondary: const Color(0xFF1A5F3A),
-          surface: const Color(0xFFF5F5DC),
-          background: const Color(0xFFF5F5DC),
+          seedColor: const Color(0xFF52B788), // Your New Brand Green
+          primary: const Color(0xFF52B788),
+          secondary: const Color(0xFF40916C),
+          surface: const Color(0xFFF9F6F0), // Warm Cream
+          background: const Color(0xFFF9F6F0),
         ),
-        scaffoldBackgroundColor: const Color(0xFFF5F5DC),
+        scaffoldBackgroundColor:
+            const Color(0xFFE8F5E9), // Matches top gradient
+        // ------------------------------------------
       ),
-      home: const GetStartedScreen(),
+
+      // Start with the Splash Screen
+      home: const SplashScreen(),
+
       routes: {
+        '/get-started': (context) => const GetStartedScreen(),
         '/login': (_) => const LoginScreen(),
         '/register': (_) => const RegisterScreen(),
         '/home': (_) => const HomeScreen(),
       },
     );
-  } 
+  }
 }

@@ -1,24 +1,25 @@
 // lib/models/livestock_model.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Livestock { 
+class Livestock {
   final String id;
   final String name;
-  final String category; 
+  final String category;
   final double price;
   final String location;
-  
-  final String imagePath; 
+
+  final String imagePath;
   final List<String> imagePaths; // NEW: List of all image paths
-  
+  final String status; // e.g. 'active' or 'sold'
+
   final String sellerId;
   final DateTime postedAt;
-  
-  final String age; 
+
+  final String age;
   final String weight;
   final String description; // NEW: Description
-  final int colorValue; 
+  final int colorValue;
 
   const Livestock({
     required this.id,
@@ -27,12 +28,13 @@ class Livestock {
     required this.price,
     required this.location,
     required this.imagePath,
-    required this.imagePaths, 
+    required this.imagePaths,
+    required this.status,
     required this.sellerId,
     required this.postedAt,
     required this.age,
     required this.weight,
-    required this.description, 
+    required this.description,
     required this.colorValue,
   });
 
@@ -52,21 +54,33 @@ class Livestock {
       category: data['category'] ?? 'Uncategorized',
       price: (data['price'] as num?)?.toDouble() ?? 0.0,
       location: data['location'] ?? 'Unknown Location',
-      
+
       // Note: Assumes single image path field is 'imagePath'
       imagePath: data['imagePath'] ?? 'default_image.jpg',
-      
+
       // CRITICAL: Read the array of image paths
-      imagePaths: getImagePaths(data['imagePaths']), 
-      
+      imagePaths: getImagePaths(data['imagePaths']),
+      status: data['status'] ?? 'active',
+
       sellerId: data['sellerId'] ?? 'N/A',
-      
+
       postedAt: (data['postedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      
+
       age: data['age'] ?? 'N/A',
       weight: data['weight'] ?? 'N/A',
-      description: data['description'] ?? 'No description provided.', // Read the description
-      colorValue: data['colorValue'] ?? 0xFF2E8B57, 
+      description: data['description'] ??
+          'No description provided.', // Read the description
+      colorValue: data['colorValue'] ?? 0xFF2E8B57,
     );
   }
+
+  // Compatibility helpers for older code
+  List<String> get images {
+    if (imagePaths.isNotEmpty) return imagePaths;
+    if (imagePath.isNotEmpty) return [imagePath];
+    return [];
+  }
+
+  String get title => name;
+  String get breed => category;
 }

@@ -1,8 +1,7 @@
-// lib/screens/login_screen.dart (SECURE VERSION)
+// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; 
-import 'package:firebase_auth/firebase_auth.dart'; 
-import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../widgets/agribenta_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,236 +10,298 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passController = TextEditingController();
-  
-  bool _isLoading = false;
-  late AnimationController _controller;
+  final _formKey = GlobalKey<FormState>();
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 35))..repeat();
-  }
+  bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _controller.dispose();
     _emailController.dispose();
     _passController.dispose();
     super.dispose();
   }
 
-  // --- 🧠 THE BRAIN: FIXED SECURE LOGIN LOGIC ---
   Future<void> _login() async {
-    // 1. Basic Check: Did they type anything?
-    if (_emailController.text.isEmpty || _passController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter email and password"), backgroundColor: Colors.orange),
-      );
-      return;
-    }
-
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-
     try {
-      // 2. USE FIREBASE AUTHENTICATION TO SIGN THE USER IN (Creates the session!)
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passController.text.trim(),
       );
-
       if (!mounted) return;
-
-      // 3. SUCCESS! A session is created. The ProfileScreen stream will now update.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Login Successful! Welcome back."), backgroundColor: Colors.green),
-      );
-      
-      // 4. Navigate to Home Screen
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Welcome back!"), backgroundColor: Color(0xFF4CAF50)));
       Navigator.pushReplacementNamed(context, '/home');
-
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      
-      String message = "An error occurred during login.";
-      
-      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
-        message = "❌ Invalid email or password. Please check your credentials.";
-      } else if (e.code == 'invalid-email') {
-        message = "❌ The email address is not valid.";
-      }
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
-      );
-      
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Error: ${e.toString()}"), backgroundColor: Colors.red),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message ?? "Failed"),
+          backgroundColor: const Color(0xFFD84315)));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-  // -------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF2C2218),   
-              Color(0xFF2E4F2A),   
-              Color(0xFF1A3A1F),
-              Color(0xFF2E4F2A),
-              Color(0xFFE9D7C4),   
-            ],
-            stops: [0.0, 0.3, 0.6, 0.85, 1.0],
-          ),
-        ),
-        child: Stack(
-          children: [
-            // Animation Background
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (_, __) => CustomPaint(
-                painter: FloatingLivestockPainter(_controller.value),
-                size: MediaQuery.of(context).size,
-              ),
-            ),
+    final size = MediaQuery.of(context).size;
+    final isSmallScreen = size.height < 700;
 
-            SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                  child: Column(
+    // Theme Colors
+    const Color textDark = Color(0xFF1B4332);
+    const Color harvestGold = Color(0xFFD4A574);
+    const Color brandGreen = Color(0xFF52B788);
+
+    return AgriBentaScaffold(
+      // The content uses the exact structure of your original file
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: size.height),
+          child: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: size.width * 0.08,
+                  vertical: isSmallScreen ? 16 : 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // 1. LOGO
+                  Stack(
+                    alignment: Alignment.center,
                     children: [
-                      // Logo
                       Container(
-                        width: 180,
-                        height: 180,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF2E4F2A).withOpacity(0.95),
-                          border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black54, blurRadius: 25, offset: const Offset(0, 10)),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(30),
-                          child: Image.asset('assets/icons/livestock.png', color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-
-                      const Text("AgriBenta", style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold)),
-                      const Text("Login to your account", style: TextStyle(fontSize: 16, color: Colors.white70)),
-
-                      const SizedBox(height: 50),
-
-                      // Email Field
-                      TextField(
-                        controller: _emailController, 
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: "Email", hintStyle: const TextStyle(color: Colors.white60),
-                          filled: true, fillColor: Colors.white.withOpacity(0.2),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                          prefixIcon: const Icon(Icons.email_outlined, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Password Field
-                      TextField(
-                        controller: _passController, 
-                        obscureText: true,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: "Password", hintStyle: const TextStyle(color: Colors.white60),
-                          filled: true, fillColor: Colors.white.withOpacity(0.2),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                          prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-
-                      // LOGIN BUTTON
-                      SizedBox(
-                        width: double.infinity,
-                        height: 58,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF2E4F2A),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                            elevation: 15,
-                          ),
-                          onPressed: _isLoading ? null : _login,
-                          child: _isLoading 
-                            ? const CircularProgressIndicator(color: Color(0xFF2E4F2A))
-                            : const Text("LOGIN", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-
-                      const SizedBox(height: 30),
-
-                      // Link to Register
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/register');
-                        },
-                        child: const Text("Don't have an account? Sign Up", style: TextStyle(color: Colors.white)),
-                      ),
+                          width: 130,
+                          height: 130,
+                          decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: harvestGold.withOpacity(0.3),
+                                  width: 2),
+                              color: harvestGold.withOpacity(0.1))),
+                      Container(
+                          width: 115,
+                          height: 115,
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(colors: [
+                                Color(0xFFD4A574),
+                                Color(0xFF52B788)
+                              ])),
+                          child: Container(
+                              decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white))),
+                      ClipOval(
+                          child: Container(
+                              width: 95,
+                              height: 95,
+                              padding: const EdgeInsets.all(14),
+                              child: Image.asset('assets/icons/livestock.png',
+                                  color: const Color(0xFF40916C),
+                                  fit: BoxFit.contain))),
                     ],
                   ),
-                ),
+
+                  SizedBox(height: isSmallScreen ? 20 : 24),
+
+                  // APP NAME
+                  ShaderMask(
+                    shaderCallback: (_) => const LinearGradient(
+                            colors: [Color(0xFF52B788), Color(0xFFD4A574)])
+                        .createShader(const Rect.fromLTWH(0, 0, 300, 70)),
+                    child: Text("AgriBenta",
+                        style: TextStyle(
+                            fontSize: isSmallScreen ? 28 : 34,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 1.5)),
+                  ),
+                  const SizedBox(height: 4),
+                  Text("LOG-IN",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                          color: harvestGold)),
+
+                  SizedBox(height: isSmallScreen ? 25 : 35),
+
+                  // 2. FORM
+                  Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    padding: EdgeInsets.all(isSmallScreen ? 22 : 28),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                            color: const Color(0xFF1B4332).withOpacity(0.1),
+                            blurRadius: 30,
+                            offset: const Offset(0, 10))
+                      ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("EMAIL", isSmallScreen, textDark),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            style: TextStyle(color: textDark, fontSize: 14),
+                            decoration: _buildInputDecoration(
+                                "agribenta@example.com",
+                                Icons.mail_outline_rounded,
+                                textDark),
+                            validator: (v) => v!.isEmpty || !v.contains('@')
+                                ? "Please enter a valid email"
+                                : null,
+                          ),
+
+                          SizedBox(height: isSmallScreen ? 16 : 20),
+
+                          _buildLabel("PASSWORD", isSmallScreen, textDark),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _passController,
+                            obscureText: _obscurePassword,
+                            style: TextStyle(color: textDark, fontSize: 14),
+                            decoration: _buildInputDecoration(
+                                    "Enter your password",
+                                    Icons.lock_outline_rounded,
+                                    textDark)
+                                .copyWith(
+                                    suffixIcon: IconButton(
+                              icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: textDark.withOpacity(0.4),
+                                  size: 20),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
+                            )),
+                            validator: (v) => v!.isEmpty
+                                ? "Please enter your password"
+                                : null,
+                          ),
+
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                                onPressed: () {},
+                                child: Text("Forgot Password?",
+                                    style: TextStyle(
+                                        color: harvestGold,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600))),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // Button
+                          Container(
+                            width: double.infinity,
+                            height: 52,
+                            decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [
+                                  Color(0xFF52B788),
+                                  Color(0xFF40916C)
+                                ]),
+                                borderRadius: BorderRadius.circular(26),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: brandGreen.withOpacity(0.3),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8))
+                                ]),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(26))),
+                              onPressed: _isLoading ? null : _login,
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5))
+                                  : const Text("Sign In",
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: isSmallScreen ? 20 : 28),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text("Don't have an account? ",
+                          style: TextStyle(
+                              color: textDark.withOpacity(0.6), fontSize: 13)),
+                      GestureDetector(
+                        onTap: () => Navigator.pushNamed(context, '/register'),
+                        child: const Text("Sign Up",
+                            style: TextStyle(
+                                color: Color(0xFF52B788),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                      )
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
 
-// Keeping your painter code here for completeness
-class FloatingLivestockPainter extends CustomPainter {
-  final double animationValue;
-  FloatingLivestockPainter(this.animationValue);
-
-  final List<IconData> icons = [Icons.cruelty_free, Icons.pets, Icons.nature, Icons.eco, Icons.yard];
-  final List<Offset> positions = [
-    const Offset(0.1, 0.2), const Offset(0.8, 0.3),
-    const Offset(0.3, 0.7), const Offset(0.7, 0.8),
-    const Offset(0.5, 0.1),
-  ];
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (int i = 0; i < icons.length; i++) {
-      final x = positions[i].dx * size.width + sin(animationValue * 2 * pi + i) * 60;
-      final y = positions[i].dy * size.height + cos(animationValue * 2 * pi + i) * 60;
-
-      final textPainter = TextPainter(textDirection: TextDirection.ltr);
-      textPainter.text = TextSpan(
-        text: String.fromCharCode(icons[i].codePoint),
-        style: TextStyle(fontSize: 80, fontFamily: icons[i].fontFamily, color: Colors.white.withOpacity(0.07)),
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x - 40, y - 40));
-    }
+  Widget _buildLabel(String text, bool small, Color color) {
+    return Text(text,
+        style: TextStyle(
+            color: color.withOpacity(0.7),
+            fontSize: small ? 11 : 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2));
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter old) => true;
+  InputDecoration _buildInputDecoration(
+      String hint, IconData icon, Color color) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: color.withOpacity(0.3), fontSize: 13),
+      filled: true,
+      fillColor: const Color(0xFFE8F5E9),
+      prefixIcon: Icon(icon, color: const Color(0xFF52B788), size: 20),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF52B788), width: 1.5)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
 }

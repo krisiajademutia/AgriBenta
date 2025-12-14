@@ -1,20 +1,37 @@
-// lib/widgets/home/section_search.dart
 import 'package:flutter/material.dart';
 
 class SectionSearch extends StatelessWidget {
-  const SectionSearch({super.key});
+  // Add this callback function
+  final ValueChanged<String> onSearchChanged;
+
+  const SectionSearch({
+    super.key,
+    required this.onSearchChanged, // Require it in the constructor
+  });
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      decoration: InputDecoration(
-        hintText: "Search livestock",
-        prefixIcon: const Icon(Icons.search, color: Color(0xFF1A5F3A)),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1B4332).withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: TextField(
+        onChanged: onSearchChanged, // <--- CONNECT IT HERE
+        decoration: InputDecoration(
+          hintText: "Search livestock...",
+          hintStyle: TextStyle(color: Colors.grey.shade400),
+          prefixIcon:
+              const Icon(Icons.search_rounded, color: Color(0xFF52B788)),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 15),
         ),
       ),
     );

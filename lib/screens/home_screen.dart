@@ -1,11 +1,10 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:agribenta/widgets/home_widgets/livestock_filter_wrapper.dart';
-import 'package:agribenta/widgets/home_widgets/home_section_search.dart';
-import 'package:agribenta/widgets/home_widgets/home_section_categories.dart';
-import 'package:agribenta/screens/notification_screen.dart';
-import 'package:agribenta/screens/cart_screen.dart';
-import 'package:agribenta/screens/profile_screen.dart';
+
+// Imports
+import 'tabs/marketplace_tab.dart';
+import 'tabs/message_tab.dart';
+import 'tabs/transaction_tab.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,203 +13,84 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-  int notificationCount = 5;
+  int _currentIndex = 0;
 
-  String _selectedCategoryName = 'All';
-
-  void _updateSelectedCategory(String newCategoryName) {
-    setState(() {
-      _selectedCategoryName = newCategoryName;
-    });
-  }
-
-  late final List<Widget> _widgetOptions = <Widget>[
-    _HomeContent(
-      selectedCategoryName: _selectedCategoryName,
-      updateSelectedCategory: _updateSelectedCategory,
-    ),
-    const Center(child: Text("Message Screen Content", style: TextStyle(color: Colors.white, fontSize: 20))), 
-    const Center(child: Text("Transactions Screen Content", style: TextStyle(color: Colors.white, fontSize: 20))), 
-    const ProfileScreen(), // Index 3: Profile screen
+  final List<Widget> _tabs = [
+    const MarketplaceTab(),
+    const MessageTab(),
+    const TransactionTab(),
+    const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final isHomeTab = _selectedIndex == 0;
-    final isProfileTab = _selectedIndex == 3;
-
-    // 🚨 FIX: Determine the background color. Dark green for Home (0) and Profile (3).
-    final scaffoldBackgroundColor = 
-        (isHomeTab || isProfileTab) ? const Color(0xFF0D4C2F) : const Color(0xFFF5F5DC);
+    const Color bgCream = Color(0xFFF9F6F0);
 
     return Scaffold(
-      // 🚨 UPDATED: Use the new logic to set the background color
-      backgroundColor: scaffoldBackgroundColor,
-
-      // Hide AppBar entirely if on the Profile tab (index 3)
-      appBar: isProfileTab ? null : AppBar(
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        backgroundColor: isHomeTab ? Colors.transparent : const Color(0xFF0D4C2F),
-        foregroundColor: isHomeTab ? Colors.yellow : Colors.white,
-        title: Text(
-          isHomeTab ? "AgriBenta" : _getAppBarTitle(_selectedIndex),
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isHomeTab ? Colors.yellow : Colors.white,
-            fontSize: 24,
-            letterSpacing: 1,
-          ),
-        ),
-        actions: [
-          _buildNotificationIcon(context, isHomeTab), 
-          IconButton(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
-            icon: Icon(Icons.shopping_cart_outlined, color: isHomeTab ? Colors.yellow : Colors.white, size: 28),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      backgroundColor: bgCream,
 
       body: IndexedStack(
-        index: _selectedIndex,
-        children: _widgetOptions,
+        index: _currentIndex,
+        children: _tabs,
       ),
 
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        backgroundColor: const Color(0xFF0D4C2F), 
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.white54,
-        type: BottomNavigationBarType.fixed,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: "Message"),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: "Transactions"),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profile"),
-        ],
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-      ),
-    );
-  }
+      // 👇 REMOVED THE FLOATING ACTION BUTTON (ADD BUTTON) HERE
 
-  String _getAppBarTitle(int index) {
-    switch (index) {
-      case 1: return "Messages";
-      case 2: return "Transactions";
-      case 3: return "My Profile";
-      default: return "AgriBenta";
-    }
-  }
-
-  Widget _buildNotificationIcon(BuildContext context, bool isHomeTab) {
-    final iconColor = isHomeTab ? Colors.yellow : Colors.white;
-
-    return Stack(
-      children: [
-        IconButton(
-          onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationScreen()));
-          },
-          icon: Icon(Icons.notifications_outlined, color: iconColor, size: 28),
-        ),
-        if (notificationCount > 0)
-          Positioned(
-            right: 8,
-            top: 8,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                shape: BoxShape.circle,
-                border: const Border.symmetric(
-                  horizontal: BorderSide(color: Colors.white, width: 1.5),
-                  vertical: BorderSide(color: Colors.white, width: 1.5),
-                ),
-              ),
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              child: Center(
-                child: Text(
-                  notificationCount > 99 ? "99+" : notificationCount.toString(),
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _HomeContent extends StatelessWidget {
-  final String selectedCategoryName;
-  final Function(String) updateSelectedCategory;
-
-  const _HomeContent({
-    required this.selectedCategoryName,
-    required this.updateSelectedCategory,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final screenHeight = mediaQuery.size.height;
-    final statusBarHeight = mediaQuery.padding.top;
-    final appBarHeight = AppBar().preferredSize.height;
-    const bottomBarHeight = kBottomNavigationBarHeight;
-
-    final minContentHeight = screenHeight - appBarHeight - statusBarHeight - bottomBarHeight;
-
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFF0D4C2F),
-            Color(0xFF1E6A3F),
-            Color(0xFFF5F5DC),
+      // UPDATED BOTTOM NAV
+      bottomNavigationBar: BottomAppBar(
+        color: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 20,
+        shadowColor: Colors.black.withOpacity(0.1),
+        height: 70,
+        padding: EdgeInsets.zero,
+        child: Row(
+          mainAxisAlignment:
+              MainAxisAlignment.spaceAround, // Evenly spaces the 4 icons
+          children: [
+            _buildNavItem(
+                0, Icons.storefront_outlined, Icons.storefront_rounded, "Home"),
+            _buildNavItem(1, Icons.chat_bubble_outline_rounded,
+                Icons.chat_bubble_rounded, "Message"),
+            _buildNavItem(2, Icons.receipt_long_outlined,
+                Icons.receipt_long_rounded, "Orders"),
+            _buildNavItem(3, Icons.person_outline_rounded, Icons.person_rounded,
+                "Profile"),
           ],
         ),
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: minContentHeight),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            20.0,
-            20.0,
-            20.0,
-            kBottomNavigationBarHeight + 20.0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SectionSearch(),
-              const SizedBox(height: 24),
-              SectionCategories(
-                onCategorySelected: updateSelectedCategory,
-                selectedCategoryName: selectedCategoryName,
+    );
+  }
+
+  Widget _buildNavItem(
+      int index, IconData iconOff, IconData iconOn, String label) {
+    final isSelected = _currentIndex == index;
+    const Color brandGreen = Color(0xFF52B788);
+
+    return InkWell(
+      onTap: () => setState(() => _currentIndex = index),
+      borderRadius: BorderRadius.circular(30),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSelected ? iconOn : iconOff,
+              color: isSelected ? brandGreen : Colors.grey.shade400,
+              size: 26,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? brandGreen : Colors.grey.shade400,
               ),
-              const SizedBox(height: 32),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (child, animation) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-                child: LivestockFilterWrapper(
-                  key: ValueKey('livestock-wrapper-$selectedCategoryName'), 
-                  selectedCategoryName: selectedCategoryName,
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            )
+          ],
         ),
       ),
     );

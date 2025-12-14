@@ -1,5 +1,5 @@
 // lib/services/realtime_service.dart
-import 'package:firebase_database/firebase_database.dart';
+/*import 'package:firebase_database/firebase_database.dart';
 import 'package:agribenta/models/livestock_model.dart';
 
 class RealtimeService {
@@ -55,4 +55,4 @@ class RealtimeService {
       'postedAt': ServerValue.timestamp,
     });
   }
-}
+}*/
