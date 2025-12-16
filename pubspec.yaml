@@ -30,6 +30,9 @@ dependencies:
   dio: ^5.4.0
   carousel_slider: ^5.0.0
 
+  # === FONTS ===
+  google_fonts: ^6.2.1
+
   # (Optional but highly recommended later)
   # firebase_storage: ^12.3.2
   # provider: ^6.1.2
