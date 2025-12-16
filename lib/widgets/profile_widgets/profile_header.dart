@@ -59,7 +59,7 @@ class ProfileHeader extends StatelessWidget {
                               profileImageUrl!.isNotEmpty
                           ? NetworkImage(profileImageUrl!)
                           : const NetworkImage(
-                                  'https://placehold.co/200x200/52B788/ffffff/png?text=User')
+                                  'https://via.placeholder.com/150?text=User')
                               as ImageProvider,
                     ),
                   ),

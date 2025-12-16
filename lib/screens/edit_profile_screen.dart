@@ -229,49 +229,106 @@ class EditProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 50),
 
-            // --- SAVE BUTTON ---
+            // --- SAVE BUTTON (With Spinner & Toast) ---
             Consumer<ProfileManager>(
               builder: (context, mgr, child) {
                 final isDisabled = mgr.isUploading || mgr.isLoadingLocation;
+
                 return SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: brandGreen, // Brand Green Button
+                      backgroundColor: brandGreen,
                       foregroundColor: Colors.white,
-                      elevation: 4,
-                      shadowColor: brandGreen.withOpacity(0.4),
+                      elevation: 6,
+                      shadowColor: brandGreen.withOpacity(0.5),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     onPressed: isDisabled
                         ? null
                         : () async {
                             final success = await mgr.saveProfile();
+
                             if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content:
-                                      Text("Profile updated successfully!"),
-                                  backgroundColor: brandGreen,
-                                ),
-                              );
-                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context)
+                                ..hideCurrentSnackBar()
+                                ..showSnackBar(
+                                  SnackBar(
+                                    content: const Row(
+                                      children: [
+                                        Icon(Icons.check_circle,
+                                            color: Colors.white),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          "Profile updated successfully!",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    backgroundColor: Colors.green[700],
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                              Navigator.pop(context); // Go back after success
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Failed to save profile."),
-                                  backgroundColor: Colors.redAccent,
-                                ),
-                              );
+                              ScaffoldMessenger.of(context)
+                                ..hideCurrentSnackBar()
+                                ..showSnackBar(
+                                  SnackBar(
+                                    content: const Row(
+                                      children: [
+                                        Icon(Icons.error, color: Colors.white),
+                                        SizedBox(width: 12),
+                                        Text(
+                                            "Failed to save profile. Try again."),
+                                      ],
+                                    ),
+                                    backgroundColor: Colors.redAccent,
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                );
                             }
                           },
-                    child: isDisabled
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text("Save Changes",
+                    child: mgr.isUploading
+                        ? const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                "Saving...",
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          )
+                        : const Text(
+                            "Save Changes",
                             style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 );
               },

@@ -1,36 +1,39 @@
+// lib/screens/edit_livestock_screen.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:agribenta/services/img_bb.dart'; // Ensure this import is correct
+import 'package:agribenta/services/img_bb.dart';
+import '../../models/livestock_model.dart';
 
-class AddLivestockScreen extends StatefulWidget {
-  const AddLivestockScreen({super.key});
+class EditLivestockScreen extends StatefulWidget {
+  final Livestock livestock;
+
+  const EditLivestockScreen({super.key, required this.livestock});
 
   @override
-  State<AddLivestockScreen> createState() => _AddLivestockScreenState();
+  State<EditLivestockScreen> createState() => _EditLivestockScreenState();
 }
 
-class _AddLivestockScreenState extends State<AddLivestockScreen> {
+class _EditLivestockScreenState extends State<EditLivestockScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // Controllers
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _ageController = TextEditingController();
-  final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
+  late TextEditingController _nameController;
+  late TextEditingController _priceController;
+  late TextEditingController _ageController;
+  late TextEditingController _weightController;
+  late TextEditingController _locationController;
+  late TextEditingController _descController;
 
-  // Data
-  String _selectedCategory = ''; // Will be set after fetching
-  final List<File> _selectedImages = [];
+  String _selectedCategory = '';
+  List<File> _newImages = [];
+  List<String> _existingUrls = [];
   final int _maxImages = 10;
 
   final Map<String, IconData> _iconRegistry = {
-    'cow': Icons.catching_pokemon, // Matches "icon_key":
+    'cow': Icons.catching_pokemon,
     'carabao': Icons.agriculture,
     'goat': Icons.grass,
     'pig': Icons.savings,
@@ -39,85 +42,113 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     'other': Icons.grid_view,
   };
 
-  IconData _getIconFromKey(String key) {
-    return _iconRegistry[key] ?? Icons.help_outline; // Default if not found
-  }
+  IconData _getIconFromKey(String key) =>
+      _iconRegistry[key] ?? Icons.help_outline;
 
-  // Theme Colors
   final Color bgCream = const Color(0xFFF9F6F0);
   final Color textDark = const Color(0xFF1B4332);
   final Color brandGreen = const Color(0xFF52B788);
 
-  // 1. PICK IMAGE LOGIC
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.livestock.name);
+    _priceController =
+        TextEditingController(text: widget.livestock.price.toStringAsFixed(0));
+    _ageController = TextEditingController(text: widget.livestock.age);
+    _weightController = TextEditingController(text: widget.livestock.weight);
+    _locationController =
+        TextEditingController(text: widget.livestock.location);
+    _descController = TextEditingController(text: widget.livestock.description);
+    _selectedCategory = widget.livestock.category;
+    _existingUrls = List.from(widget.livestock.imagePaths);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
+    _locationController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickImages() async {
-    if (_selectedImages.length >= _maxImages) return;
-    final List<XFile> pickedFiles =
-        await ImagePicker().pickMultiImage(imageQuality: 70);
-    if (pickedFiles.isNotEmpty) {
+    if (_newImages.length + _existingUrls.length >= _maxImages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Maximum 10 images allowed")),
+      );
+      return;
+    }
+    final picked = await ImagePicker().pickMultiImage(imageQuality: 70);
+    if (picked.isNotEmpty) {
       setState(() {
-        int remaining = _maxImages - _selectedImages.length;
-        _selectedImages
-            .addAll(pickedFiles.take(remaining).map((x) => File(x.path)));
+        int remaining = _maxImages - _existingUrls.length;
+        _newImages.addAll(picked.take(remaining).map((x) => File(x.path)));
       });
     }
   }
 
-  void _removeImage(int index) =>
-      setState(() => _selectedImages.removeAt(index));
+  void _removeNew(int index) => setState(() => _newImages.removeAt(index));
+  void _removeExisting(String url) => setState(() => _existingUrls.remove(url));
 
-  // 2. SUBMIT LOGIC (Same as before)
-  Future<void> _submitListing() async {
+  Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedImages.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Add a photo.")));
+    if (_existingUrls.isEmpty && _newImages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("At least one photo is required")),
+      );
       return;
     }
-    if (_selectedCategory.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Select a category.")));
-      return;
-    }
+
     setState(() => _isLoading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      List<String> allUrls = List.from(_existingUrls);
 
-      List<String>? downloadUrls =
-          await ImgBBService.uploadLivestockImages(_selectedImages);
-
-      if (downloadUrls == null || downloadUrls.isEmpty) {
-        // Handle the case where the upload failed (e.g., 503 error, rate limit)
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Image upload failed. Please try again.")));
-        setState(() => _isLoading = false);
-        return; // Stop the function here
+      if (_newImages.isNotEmpty) {
+        List<String>? uploaded =
+            await ImgBBService.uploadLivestockImages(_newImages);
+        if (uploaded == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Image upload failed")),
+          );
+          setState(() => _isLoading = false);
+          return;
+        }
+        allUrls.addAll(uploaded);
       }
 
-      await FirebaseFirestore.instance.collection('livestock').add({
-        'sellerId': user.uid,
+      await FirebaseFirestore.instance
+          .collection('livestock')
+          .doc(widget.livestock.id)
+          .update({
         'name': _nameController.text.trim(),
-        'category': _selectedCategory, // Uses the fetched category name
+        'category': _selectedCategory,
         'price': double.tryParse(_priceController.text) ?? 0.0,
         'age': _ageController.text.trim(),
         'weight': _weightController.text.trim(),
         'location': _locationController.text.trim(),
         'description': _descController.text.trim(),
-        'imagePath': downloadUrls.first,
-        'imagePaths': downloadUrls,
-        'postedAt': FieldValue.serverTimestamp(),
-        'status': 'active',
+        'imagePath': allUrls.first,
+        'imagePaths': allUrls,
       });
 
       if (mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Success!"), backgroundColor: brandGreen));
+          SnackBar(
+            content: const Text("Listing updated successfully!"),
+            backgroundColor: brandGreen,
+          ),
+        );
+        Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -127,31 +158,29 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgCream,
-      // ⭐️ FIX 1: Explicitly tell Scaffold to resize body when keyboard is visible
-      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: bgCream,
         elevation: 0,
         leading: IconButton(
-            icon: Icon(Icons.close, color: textDark),
-            onPressed: () => Navigator.pop(context)),
-        title: Text("Sell Livestock",
-            style: TextStyle(color: textDark, fontWeight: FontWeight.bold)),
+          icon: Icon(Icons.close, color: textDark),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          "Edit Listing",
+          style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
       ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
         child: ElevatedButton(
-          onPressed: _isLoading ? null : _submitListing,
+          onPressed: _isLoading ? null : _saveChanges,
           style: ElevatedButton.styleFrom(
             backgroundColor: brandGreen,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 18),
-            elevation: 6,
-            shadowColor: brandGreen.withOpacity(0.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
           child: _isLoading
               ? const Row(
@@ -161,53 +190,32 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      ),
+                          color: Colors.white, strokeWidth: 3),
                     ),
                     SizedBox(width: 16),
-                    Text(
-                      "Posting...",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text("Saving...",
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 )
-              : const Text(
-                  "Post Listing",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              : const Text("Save Changes",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
       ),
       body: SingleChildScrollView(
-        // ⭐️ FIX 2: Added sufficient bottom padding to prevent the fixed button
-        // from clipping the scrollable content.
-        padding: EdgeInsets.fromLTRB(
-          20, // Left
-          10, // Top
-          20, // Right
-          // Use viewPadding (for safe area) + 100px buffer for the button
-          MediaQuery.of(context).viewPadding.bottom + 100,
-        ),
-        // ⭐️ END FIX ⭐️
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // PHOTO GALLERY (Same UI as before)
               _buildSectionTitle("Photos"),
               const SizedBox(height: 10),
               SizedBox(
                 height: 120,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: _selectedImages.length + 1,
+                  itemCount: _existingUrls.length + _newImages.length + 1,
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return GestureDetector(
@@ -226,19 +234,49 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                         ),
                       );
                     }
+                    index--;
+
+                    if (index < _existingUrls.length) {
+                      final url = _existingUrls[index];
+                      return Container(
+                        width: 120,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          image: DecorationImage(
+                              image: NetworkImage(url), fit: BoxFit.cover),
+                        ),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: GestureDetector(
+                            onTap: () => _removeExisting(url),
+                            child: Container(
+                              margin: const EdgeInsets.all(5),
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                  color: Colors.white, shape: BoxShape.circle),
+                              child: const Icon(Icons.close,
+                                  size: 14, color: Colors.red),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    index -= _existingUrls.length;
                     return Container(
                       width: 120,
                       margin: const EdgeInsets.only(right: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         image: DecorationImage(
-                            image: FileImage(_selectedImages[index - 1]),
+                            image: FileImage(_newImages[index]),
                             fit: BoxFit.cover),
                       ),
                       child: Align(
                         alignment: Alignment.topRight,
                         child: GestureDetector(
-                          onTap: () => _removeImage(index - 1),
+                          onTap: () => _removeNew(index),
                           child: Container(
                             margin: const EdgeInsets.all(5),
                             padding: const EdgeInsets.all(4),
@@ -256,10 +294,9 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
 
               const SizedBox(height: 24),
 
-              // --- DYNAMIC CATEGORIES FROM FIRESTORE ---
+              // Category (same as Add screen)
               _buildSectionTitle("Category"),
               const SizedBox(height: 10),
-
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('categories')
@@ -270,9 +307,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
 
                   final categoriesDocs = snapshot.data!.docs;
 
-                  // Sort them alphabetically if you want
-                  categoriesDocs.sort((a, b) => a['name'].compareTo(b['name']));
-
                   return SizedBox(
                     height: 50,
                     child: ListView.builder(
@@ -282,17 +316,13 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                         final data = categoriesDocs[index].data()
                             as Map<String, dynamic>;
                         final String catName = data['name'] ?? 'Unknown';
-                        final String iconKey = data['icon_key'] ??
-                            'other'; // Matches your Firestore field
+                        final String iconKey = data['icon_key'] ?? 'other';
 
                         final bool isSelected = _selectedCategory == catName;
 
                         return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedCategory = catName;
-                            });
-                          },
+                          onTap: () =>
+                              setState(() => _selectedCategory = catName),
                           child: Container(
                             margin: const EdgeInsets.only(right: 12),
                             padding: const EdgeInsets.symmetric(
@@ -307,7 +337,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                             ),
                             child: Row(
                               children: [
-                                // LOOKUP ICON FROM REGISTRY
                                 Icon(_getIconFromKey(iconKey),
                                     size: 18,
                                     color: isSelected
@@ -338,44 +367,63 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
               _buildSectionTitle("Item Details"),
               const SizedBox(height: 10),
               _buildInputCard(
-                  child: TextFormField(
-                      controller: _nameController,
-                      decoration: _inputDeco("Title", "e.g. Brahman Bull"))),
+                child: TextFormField(
+                  controller: _nameController,
+                  validator: (v) =>
+                      v?.trim().isEmpty ?? true ? "Title required" : null,
+                  decoration: _inputDeco("Title", "e.g. Brahman Bull"),
+                ),
+              ),
               const SizedBox(height: 12),
               _buildInputCard(
-                  child: TextFormField(
-                      controller: _priceController,
-                      keyboardType: TextInputType.number,
-                      decoration: _inputDeco("Price", "0.00", prefix: "₱ "))),
+                child: TextFormField(
+                  controller: _priceController,
+                  keyboardType: TextInputType.number,
+                  validator: (v) =>
+                      v?.isEmpty ?? true ? "Price required" : null,
+                  decoration: _inputDeco("Price", "0.00", prefix: "₱ "),
+                ),
+              ),
               const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
+              Row(
+                children: [
+                  Expanded(
                     child: _buildInputCard(
-                        child: TextFormField(
-                            controller: _weightController,
-                            decoration: _inputDeco("Weight", "kg")))),
-                const SizedBox(width: 12),
-                Expanded(
+                      child: TextFormField(
+                        controller: _weightController,
+                        decoration: _inputDeco("Weight", "kg"),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: _buildInputCard(
-                        child: TextFormField(
-                            controller: _ageController,
-                            decoration: _inputDeco("Age", "yrs")))),
-              ]),
+                      child: TextFormField(
+                        controller: _ageController,
+                        decoration: _inputDeco("Age", "yrs"),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               _buildInputCard(
-                  child: TextFormField(
-                      controller: _locationController,
-                      decoration: _inputDeco("Location", "City, Province",
-                          icon: Icons.location_on_outlined))),
+                child: TextFormField(
+                  controller: _locationController,
+                  decoration: _inputDeco("Location", "City, Province",
+                      icon: Icons.location_on_outlined),
+                ),
+              ),
               const SizedBox(height: 24),
               _buildSectionTitle("Description"),
               const SizedBox(height: 10),
               _buildInputCard(
-                  child: TextFormField(
-                      controller: _descController,
-                      maxLines: 5,
-                      decoration:
-                          _inputDeco("Describe...", "", isMultiLine: true))),
+                child: TextFormField(
+                  controller: _descController,
+                  maxLines: 5,
+                  decoration: _inputDeco("Describe...", "", isMultiLine: true),
+                ),
+              ),
               const SizedBox(height: 40),
             ],
           ),
@@ -384,28 +432,34 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     );
   }
 
-  // Helpers
-  Widget _buildSectionTitle(String t) => Text(t,
-      style: TextStyle(
-          fontSize: 16, fontWeight: FontWeight.bold, color: textDark));
+  Widget _buildSectionTitle(String t) => Text(
+        t,
+        style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.bold, color: textDark),
+      );
+
   Widget _buildInputCard({required Widget child}) => Container(
-      decoration: BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
                 color: textDark.withOpacity(0.05),
                 blurRadius: 10,
-                offset: const Offset(0, 4))
-          ]),
-      child: child);
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        child: child,
+      );
+
   InputDecoration _inputDeco(String l, String h,
           {String? prefix, IconData? icon, bool isMultiLine = false}) =>
       InputDecoration(
-          labelText: isMultiLine ? null : l,
-          hintText: h,
-          prefixText: prefix,
-          prefixIcon: icon != null ? Icon(icon) : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16));
+        labelText: isMultiLine ? null : l,
+        hintText: h,
+        prefixText: prefix,
+        prefixIcon: icon != null ? Icon(icon) : null,
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.all(16),
+      );
 }

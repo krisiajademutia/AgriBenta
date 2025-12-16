@@ -130,21 +130,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             const SizedBox(height: 20),
 
-                            // SELLER VIEW
                             if (roleManager.isSeller) ...[
-                              // Stats Row (Uses your new widget)
-                              const ProfileStatsRow(
-                                totalListings: 0,
-                                totalSales: 0,
-                                totalEarnings: 0,
+                              // Dynamic Stats Row at the top
+                              StreamBuilder<QuerySnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('livestock')
+                                    .where('sellerId', isEqualTo: user.uid)
+                                    .snapshots(),
+                                builder: (context, snapshot) {
+                                  int totalListings = 0;
+                                  int totalSales = 0;
+                                  double totalEarnings = 0.0;
+
+                                  if (snapshot.hasData) {
+                                    totalListings = snapshot.data!.docs.length;
+
+                                    for (var doc in snapshot.data!.docs) {
+                                      final data =
+                                          doc.data() as Map<String, dynamic>;
+                                      if (data['status']?.toLowerCase() ==
+                                          'sold') {
+                                        totalSales++;
+                                        totalEarnings += (data['price'] as num?)
+                                                ?.toDouble() ??
+                                            0.0;
+                                      }
+                                    }
+                                  }
+
+                                  return ProfileStatsRow(
+                                    totalListings: totalListings,
+                                    totalSales: totalSales,
+                                    totalEarnings: totalEarnings,
+                                  );
+                                },
                               ),
 
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 20),
 
-                              // Listings Grid (Uses your new widget via Stream)
+                              // My Listings Tab with All/Active/Sold filters (dynamic)
                               _buildSellerListings(user.uid),
                             ]
-
                             // BUYER VIEW
                             else
                               Padding(
@@ -257,9 +283,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         // Convert Firestore docs to Models
-        final List<Livestock> listings = snapshot.data?.docs.map((doc) {
-              return Livestock.fromSnapshot(
-                  doc.id, doc.data() as Map<String, dynamic>);
+        final List<Livestock> listings = snapshot.data?.docs
+                // ⭐️ FIX: Use map<Livestock> and pass only the document ⭐️
+                .map<Livestock>((doc) {
+              // Now correctly calling the single-argument factory constructor
+              return Livestock.fromSnapshot(doc);
             }).toList() ??
             [];
 

@@ -3,14 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:agribenta/services/img_bb.dart';
 
 class LivestockManager extends ChangeNotifier {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
-  final _storage = FirebaseStorage.instance;
+  // Removed: final _storage = FirebaseStorage.instance;
 
   // --- Listing State Variables ---
   String? _name;
@@ -47,18 +47,15 @@ class LivestockManager extends ChangeNotifier {
   String? get ageYears => _ageYears;
   String? get ageMonths => _ageMonths;
   String? get weight => _weight;
-  String? get description => _description; // NEW Getter
+  String? get description => _description;
   List<File> get tempImageFiles => _tempImageFiles;
   bool get isSaving => _isSaving;
   bool get isLoadingLocation => _isLoadingLocation;
   List<String> get availableCategories => _availableCategories;
   bool get isLoadingCategories => _isLoadingCategories;
 
-  // --- Setters (Update state from UI) ---
-  void setName(String value) {
-    _name = value;
-  }
-
+  // --- Setters ---
+  void setName(String value) => _name = value;
   void setCategory(String value) {
     _category = value;
     notifyListeners();
@@ -68,25 +65,11 @@ class LivestockManager extends ChangeNotifier {
     _price = value.isNotEmpty ? double.tryParse(value) : null;
   }
 
-  void setLocation(String value) {
-    _location = value;
-  }
-
-  void setWeight(String value) {
-    _weight = value;
-  }
-
-  void setDescription(String value) {
-    _description = value;
-  } // NEW Setter
-
-  void setAgeYears(String value) {
-    _ageYears = value;
-  }
-
-  void setAgeMonths(String value) {
-    _ageMonths = value;
-  }
+  void setLocation(String value) => _location = value;
+  void setWeight(String value) => _weight = value;
+  void setDescription(String value) => _description = value;
+  void setAgeYears(String value) => _ageYears = value;
+  void setAgeMonths(String value) => _ageMonths = value;
 
   void addImageFile(File file) {
     _tempImageFiles.add(file);
@@ -105,14 +88,8 @@ class LivestockManager extends ChangeNotifier {
 
     try {
       final snapshot = await _firestore.collection('categories').get();
-
-      print(
-          "Found ${snapshot.docs.length} categories"); // ← SEE THIS IN CONSOLE
-
       _availableCategories = snapshot.docs.map((doc) {
         final data = doc.data();
-        print(
-            "Document data: $data"); // ← THIS WILL SHOW YOU THE EXACT FIELD NAMES
         return data['name'] as String? ??
             data['categoryName'] as String? ??
             data['title'] as String? ??
@@ -121,11 +98,9 @@ class LivestockManager extends ChangeNotifier {
 
       _availableCategories
           .removeWhere((name) => name == 'Unknown Category' || name.isEmpty);
-
-      print("Final categories: $_availableCategories"); // ← FINAL LIST
     } catch (e) {
-      debugPrint("Error: $e");
-      _availableCategories = ['Cattle', 'Goat', 'Pig', 'Chicken']; // fallback
+      debugPrint("Error fetching categories: $e");
+      _availableCategories = ['Cattle', 'Goat', 'Pig', 'Chicken'];
     }
 
     _isLoadingCategories = false;
@@ -187,34 +162,11 @@ class LivestockManager extends ChangeNotifier {
     }
   }
 
-  // --- Multiple Image Upload Logic (Firebase Storage) ---
-  Future<List<String>?> _uploadListingImages(List<File> imageFiles) async {
-    if (imageFiles.isEmpty) return null;
-
-    List<String> imageUrls = [];
-    final uid = _auth.currentUser!.uid;
-
-    for (var i = 0; i < imageFiles.length; i++) {
-      final fileName = '${uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-      final ref = _storage.ref().child('listings/$fileName');
-
-      try {
-        await ref.putFile(imageFiles[i]);
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
-      } on FirebaseException catch (e) {
-        debugPrint("Image upload failed for file $i: ${e.code}");
-        return null;
-      }
-    }
-    return imageUrls;
-  }
-
-  // --- Post Listing Function (Saves to 'livestock' collection) ---
+  // --- Post Listing Function (Now uses Cloudinary) ---
   Future<bool> postListing() async {
     if (_auth.currentUser == null || _isSaving) return false;
 
-    // 1. Validation
+    // Validation
     final isYearsEntered = (_ageYears != null && _ageYears!.isNotEmpty);
     final isMonthsEntered = (_ageMonths != null && _ageMonths!.isNotEmpty);
     final isAgeValid = isYearsEntered || isMonthsEntered;
@@ -235,25 +187,26 @@ class LivestockManager extends ChangeNotifier {
     _isSaving = true;
     notifyListeners();
 
-    List<String>? imageUrls;
-
     try {
-      // 2. Upload Images to Firebase Storage
-      imageUrls = await _uploadListingImages(_tempImageFiles);
+      // 1. Upload images to Cloudinary
+      List<String> imageUrls =
+          await ImgBBService.uploadLivestockImages(_tempImageFiles) ?? [];
 
-      if (imageUrls == null || imageUrls.isEmpty) return false;
+      if (imageUrls.isEmpty) {
+        debugPrint("Cloudinary upload failed or returned empty URLs");
+        return false;
+      }
 
-      // 3. Create Livestock Data
+      // 2. Create document
       final newDocRef = _firestore.collection('livestock').doc();
 
-      // Format Age String
+      // Format Age
       final years = isYearsEntered
           ? '${_ageYears} year${_ageYears == '1' ? '' : 's'}'
           : '';
       final months = isMonthsEntered
           ? '${_ageMonths} month${_ageMonths == '1' ? '' : 's'}'
           : '';
-
       String ageString = '';
       if (years.isNotEmpty && months.isNotEmpty) {
         ageString = '$years $months';
@@ -271,18 +224,18 @@ class LivestockManager extends ChangeNotifier {
         'location': _location,
         'age': ageString,
         'weight': _weight,
-        'description': _description!.trim(), // Description saved
+        'description': _description!.trim(),
         'colorValue': 0xFF2E8B57,
         'imagePath': mainImagePath,
-        'imagePaths': imageUrls, // Multiple image paths saved
+        'imagePaths': imageUrls,
         'sellerId': _auth.currentUser!.uid,
         'postedAt': FieldValue.serverTimestamp(),
       };
 
-      // 4. Save data to Firebase Firestore
+      // 3. Save to Firestore
       await newDocRef.set(listingData);
 
-      // 5. Success cleanup
+      // 4. Cleanup
       _resetState();
       return true;
     } catch (e) {

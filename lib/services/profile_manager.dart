@@ -3,20 +3,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:agribenta/services/img_bb.dart';
 
 class ProfileManager extends ChangeNotifier {
   final _firestore = FirebaseFirestore.instance;
-  final _storage = FirebaseStorage.instance;
   final _auth = FirebaseAuth.instance;
 
   User? get user => _auth.currentUser;
 
   // --- State Variables ---
   String? _name;
-  String? _phone; // ← ADDED
+  String? _phone;
   String? _location;
   String? _imageUrl;
   String? _loadedUserId;
@@ -28,7 +27,7 @@ class ProfileManager extends ChangeNotifier {
 
   // Public Getters
   String? get name => _name;
-  String? get phone => _phone; // ← ADDED
+  String? get phone => _phone;
   String? get location => _location;
   String? get imageUrl => _imageUrl;
   File? get tempImageFile => _tempImageFile;
@@ -39,10 +38,8 @@ class ProfileManager extends ChangeNotifier {
   Future<void> loadUserData() async {
     if (user == null) return;
 
-    // If data is already loaded for the current user, skip reload
     if (_loadedUserId == user!.uid) return;
 
-    // If a different user is now logged in, clear previous cached data
     _loadedUserId = user!.uid;
     _name = null;
     _phone = null;
@@ -64,50 +61,18 @@ class ProfileManager extends ChangeNotifier {
   }
 
   // --- Updaters ---
-  void setName(String newName) {
-    _name = newName;
-  }
+  void setName(String newName) => _name = newName;
 
   void setPhone(String newPhone) {
-    // ← ADDED
     _phone = newPhone;
     notifyListeners();
   }
 
-  void setLocation(String newLocation) {
-    _location = newLocation;
-  }
+  void setLocation(String newLocation) => _location = newLocation;
 
   void setTempImageFile(File? file) {
     _tempImageFile = file;
     notifyListeners();
-  }
-
-  // --- Image Upload ---
-  Future<String?> _uploadImage(File imageFile) async {
-    if (user == null) return null;
-    final ref = _storage.ref().child('users/${user!.uid}/profile.jpg');
-
-    try {
-      await ref.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
-      return await ref.getDownloadURL();
-    } on FirebaseException catch (e) {
-      debugPrint("Firebase Storage Error: ${e.code} - ${e.message}");
-      return null;
-    }
-  }
-
-  Future<void> _deleteOldImage(String? oldUrl) async {
-    if (oldUrl == null || oldUrl.isEmpty) return;
-    if (!oldUrl.contains('/profile.jpg')) {
-      try {
-        await _storage.refFromURL(oldUrl).delete();
-      } on FirebaseException catch (e) {
-        if (e.code != 'object-not-found') {
-          debugPrint("Error deleting old image: ${e.code}");
-        }
-      }
-    }
   }
 
   // --- Location ---
@@ -167,7 +132,7 @@ class ProfileManager extends ChangeNotifier {
     }
   }
 
-  // --- Save Profile ---
+  // --- Save Profile (Now uses Cloudinary) ---
   Future<bool> saveProfile() async {
     if (user == null ||
         _name == null ||
@@ -183,20 +148,20 @@ class ProfileManager extends ChangeNotifier {
     String? newImageUrl = _imageUrl;
 
     if (_tempImageFile != null) {
-      newImageUrl = await _uploadImage(_tempImageFile!);
+      // 1. Upload new profile image using ImgBBService
+      newImageUrl = await ImgBBService.uploadProfileImage(_tempImageFile!);
+
       if (newImageUrl == null) {
+        debugPrint("ImgBB profile upload failed"); // FIX: Corrected log message
         _isUploading = false;
         notifyListeners();
         return false;
-      }
-      if (_imageUrl != null && _imageUrl!.isNotEmpty) {
-        await _deleteOldImage(_imageUrl);
       }
     }
 
     try {
       await _firestore.collection('users').doc(user!.uid).update({
-        'phone': _phone?.trim() ?? '', // ← ADDED
+        'phone': _phone?.trim() ?? '',
         'location': _location!.trim(),
         if (newImageUrl != null) 'profileImageUrl': newImageUrl,
       });

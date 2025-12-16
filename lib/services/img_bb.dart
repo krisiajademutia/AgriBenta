@@ -1,9 +1,9 @@
-/*import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 
 class ImgBBService {
-  static const String apiKey = 'YOUR_IMGBB_API_KEY_HERE'; // Paste your key here
+  static const String apiKey =
+      '7153706809c25e5afba9521b8a500079'; // Paste your key
 
   static Future<List<String>?> uploadLivestockImages(List<File> images) async {
     if (images.isEmpty) return [];
@@ -13,12 +13,14 @@ class ImgBBService {
 
     for (var image in images) {
       try {
-        String base64Image = base64Encode(await image.readAsBytes());
+        FormData formData = FormData.fromMap({
+          'key': apiKey,
+          'image': await MultipartFile.fromFile(image.path),
+        });
 
         Response response = await dio.post(
           'https://api.imgbb.com/1/upload',
-          queryParameters: {'key': apiKey},
-          data: {'image': base64Image},
+          data: formData,
         );
 
         if (response.statusCode == 200) {
@@ -37,12 +39,14 @@ class ImgBBService {
 
   static Future<String?> uploadProfileImage(File image) async {
     try {
-      String base64Image = base64Encode(await image.readAsBytes());
+      FormData formData = FormData.fromMap({
+        'key': apiKey,
+        'image': await MultipartFile.fromFile(image.path),
+      });
 
       Response response = await Dio().post(
         'https://api.imgbb.com/1/upload',
-        queryParameters: {'key': apiKey},
-        data: {'image': base64Image},
+        data: formData,
       );
 
       if (response.statusCode == 200) {
@@ -55,4 +59,4 @@ class ImgBBService {
       return null;
     }
   }
-}*/
+}
