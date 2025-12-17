@@ -4,17 +4,16 @@ import 'home_section_livestock.dart';
 
 class LivestockFilterWrapper extends StatelessWidget {
   final String selectedCategoryName;
-  final String searchQuery; // <--- Add this
+  final String searchQuery;
 
   const LivestockFilterWrapper({
     super.key,
     required this.selectedCategoryName,
-    required this.searchQuery, // <--- Require it
+    required this.searchQuery,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 1. QUERY SETUP (Keep Category Logic)
     Query query = FirebaseFirestore.instance.collection('livestock');
 
     if (selectedCategoryName != 'All') {
@@ -45,8 +44,7 @@ class LivestockFilterWrapper extends StatelessWidget {
 
         final allDocs = snapshot.data!.docs;
 
-        // 2. SEARCH FILTERING (Client Side)
-        // We filter the list in memory because Firestore can't do "Contains" search easily
+        //  SEARCH FILTERING (Client Side)
         final filteredDocs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final name = (data['name'] ?? '').toString().toLowerCase();

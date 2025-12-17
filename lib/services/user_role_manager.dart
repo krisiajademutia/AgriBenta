@@ -11,7 +11,7 @@ class UserRoleManager extends ChangeNotifier {
   bool get hasTappedStartSelling => _hasStartedSelling;
 
   UserRoleManager() {
-    _loadRole(); // ← CALL IT IN CONSTRUCTOR
+    _loadRole(); // ← CALL IN CONSTRUCTOR
   }
 
   Future<void> _loadRole() async {

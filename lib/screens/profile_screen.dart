@@ -2,19 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-
-// 1. Models
-import '../models/user_model.dart';
-import '../models/livestock_model.dart';
-
-// 2. Services
-import '../services/user_role_manager.dart';
-
-// 3. Screens
 import 'add_livestock_screen.dart';
 import 'edit_profile_screen.dart';
-
-// 4. Your New Widgets
+import '../models/user_model.dart';
+import '../models/livestock_model.dart';
+import '../services/user_role_manager.dart';
 import '../widgets/profile_widgets/profile_header.dart';
 import '../widgets/profile_widgets/profile_stats_row.dart';
 import '../widgets/profile_widgets/profile_listings_tab.dart';
@@ -75,7 +67,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.only(bottom: 120),
                   child: Column(
                     children: [
-                      // 1. HEADER (Uses your new widget)
+                      //  HEADER
                       ProfileHeader(
                         name: userModel.name,
                         location: userModel.location,
@@ -95,11 +87,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                       const SizedBox(height: 10),
 
-                      // 2. FIRST TIME USER (CTA Card)
+                      //  FIRST TIME USER (CTA Card)
                       if (!hasStartedSelling)
                         _buildStartSellingCard(roleManager)
 
-                      // 3. REGULAR USER UI
+                      //  REGULAR USER UI
                       else
                         Column(
                           children: [
@@ -283,13 +275,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
 
         // Convert Firestore docs to Models
-        final List<Livestock> listings = snapshot.data?.docs
-                // ⭐️ FIX: Use map<Livestock> and pass only the document ⭐️
-                .map<Livestock>((doc) {
-              // Now correctly calling the single-argument factory constructor
-              return Livestock.fromSnapshot(doc);
-            }).toList() ??
-            [];
+        final List<Livestock> listings =
+            snapshot.data?.docs.map<Livestock>((doc) {
+                  return Livestock.fromSnapshot(doc);
+                }).toList() ??
+                [];
 
         // Use the Widget you uploaded!
         return ProfileListingsTab(

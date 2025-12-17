@@ -33,7 +33,6 @@ class ProfileHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 10),
       child: Column(
         children: [
-          // 1. TOP ROW: Avatar + Info + Logout
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -91,9 +90,8 @@ class ProfileHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 10), // Adjusted top spacing
+                    const SizedBox(height: 10),
 
-                    // Name (Now allows wrapping)
                     Text(
                       name,
                       style: const TextStyle(
@@ -101,7 +99,7 @@ class ProfileHeader extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: textDark,
                         letterSpacing: -0.5,
-                        height: 1.2, // Better line height for multi-line names
+                        height: 1.2,
                       ),
                     ),
 
@@ -150,7 +148,7 @@ class ProfileHeader extends StatelessWidget {
 
           const SizedBox(height: 25),
 
-          // 2. SELLER ACTION BAR (If Seller)
+          //  SELLER ACTION BAR (If Seller)
           if (isSellerMode)
             SizedBox(
               width: double.infinity,

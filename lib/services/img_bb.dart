@@ -2,8 +2,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 class ImgBBService {
-  static const String apiKey =
-      '7153706809c25e5afba9521b8a500079'; // Paste your key
+  static const String apiKey = '7153706809c25e5afba9521b8a500079';
 
   static Future<List<String>?> uploadLivestockImages(List<File> images) async {
     if (images.isEmpty) return [];

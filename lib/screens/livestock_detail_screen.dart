@@ -1,5 +1,3 @@
-// lib/screens/livestock_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import '../../models/livestock_model.dart';

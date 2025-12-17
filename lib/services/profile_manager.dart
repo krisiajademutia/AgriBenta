@@ -132,7 +132,7 @@ class ProfileManager extends ChangeNotifier {
     }
   }
 
-  // --- Save Profile (Now uses Cloudinary) ---
+  // --- Save Profile (Now uses IMGBB) ---
   Future<bool> saveProfile() async {
     if (user == null ||
         _name == null ||

@@ -1,5 +1,3 @@
-// lib/models/livestock_model.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Livestock {
@@ -62,7 +60,6 @@ class Livestock {
     );
   }
 
-  // The correct factory method for QueryDocumentSnapshot (1 argument)
   factory Livestock.fromSnapshot(QueryDocumentSnapshot snapshot) {
     final data = snapshot.data() as Map<String, dynamic>;
     // Pass the document ID into the data map so the fromJson constructor can use it

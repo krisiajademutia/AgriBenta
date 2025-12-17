@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:agribenta/services/img_bb.dart'; // Ensure this import is correct
+import 'package:agribenta/services/img_bb.dart';
 
 class AddLivestockScreen extends StatefulWidget {
   const AddLivestockScreen({super.key});
@@ -30,7 +30,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   final int _maxImages = 10;
 
   final Map<String, IconData> _iconRegistry = {
-    'cow': Icons.catching_pokemon, // Matches "icon_key":
+    'cow': Icons.catching_pokemon,
     'carabao': Icons.agriculture,
     'goat': Icons.grass,
     'pig': Icons.savings,
@@ -127,7 +127,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: bgCream,
-      // ⭐️ FIX 1: Explicitly tell Scaffold to resize body when keyboard is visible
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: bgCream,
@@ -185,16 +184,12 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        // ⭐️ FIX 2: Added sufficient bottom padding to prevent the fixed button
-        // from clipping the scrollable content.
         padding: EdgeInsets.fromLTRB(
           20, // Left
           10, // Top
           20, // Right
-          // Use viewPadding (for safe area) + 100px buffer for the button
           MediaQuery.of(context).viewPadding.bottom + 100,
         ),
-        // ⭐️ END FIX ⭐️
         child: Form(
           key: _formKey,
           child: Column(
@@ -270,7 +265,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
 
                   final categoriesDocs = snapshot.data!.docs;
 
-                  // Sort them alphabetically if you want
+                  // Sort alphabetically
                   categoriesDocs.sort((a, b) => a['name'].compareTo(b['name']));
 
                   return SizedBox(
@@ -282,8 +277,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                         final data = categoriesDocs[index].data()
                             as Map<String, dynamic>;
                         final String catName = data['name'] ?? 'Unknown';
-                        final String iconKey = data['icon_key'] ??
-                            'other'; // Matches your Firestore field
+                        final String iconKey = data['icon_key'] ?? 'other';
 
                         final bool isSelected = _selectedCategory == catName;
 
@@ -359,7 +353,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                     child: _buildInputCard(
                         child: TextFormField(
                             controller: _ageController,
-                            decoration: _inputDeco("Age", "yrs")))),
+                            decoration: _inputDeco("Age", "months")))),
               ]),
               const SizedBox(height: 12),
               _buildInputCard(

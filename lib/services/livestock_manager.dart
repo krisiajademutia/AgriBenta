@@ -1,4 +1,3 @@
-// lib/services/livestock_manager.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +9,6 @@ import 'package:agribenta/services/img_bb.dart';
 class LivestockManager extends ChangeNotifier {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
-  // Removed: final _storage = FirebaseStorage.instance;
 
   // --- Listing State Variables ---
   String? _name;
@@ -107,7 +105,7 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Location Logic (UNCHANGED) ---
+  // --- Location Logic  ---
   Future<String> _getAddressFromCoordinates(Position position) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -162,7 +160,6 @@ class LivestockManager extends ChangeNotifier {
     }
   }
 
-  // --- Post Listing Function (Now uses Cloudinary) ---
   Future<bool> postListing() async {
     if (_auth.currentUser == null || _isSaving) return false;
 
@@ -188,12 +185,12 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Upload images to Cloudinary
+      // 1. Upload images to imgbb
       List<String> imageUrls =
           await ImgBBService.uploadLivestockImages(_tempImageFiles) ?? [];
 
       if (imageUrls.isEmpty) {
-        debugPrint("Cloudinary upload failed or returned empty URLs");
+        debugPrint("Upload failed or returned empty URLs");
         return false;
       }
 

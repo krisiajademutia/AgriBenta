@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
 class SectionSearch extends StatelessWidget {
-  // Add this callback function
   final ValueChanged<String> onSearchChanged;
 
   const SectionSearch({
     super.key,
-    required this.onSearchChanged, // Require it in the constructor
+    required this.onSearchChanged,
   });
 
   @override
@@ -24,7 +23,7 @@ class SectionSearch extends StatelessWidget {
         ],
       ),
       child: TextField(
-        onChanged: onSearchChanged, // <--- CONNECT IT HERE
+        onChanged: onSearchChanged,
         decoration: InputDecoration(
           hintText: "Search livestock...",
           hintStyle: TextStyle(color: Colors.grey.shade400),

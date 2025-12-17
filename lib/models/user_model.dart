@@ -1,5 +1,3 @@
-// lib/models/user_model.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
@@ -21,15 +19,14 @@ class UserModel {
 
   // Factory constructor to create a UserModel from a Firestore Document Snapshot
   factory UserModel.fromSnapshot(DocumentSnapshot doc) {
-    // 1. Get the raw data, which is Object? (or Map<dynamic, dynamic>)
+    // Get the raw data, which is Object? (or Map<dynamic, dynamic>)
     final userData = doc.data();
 
-    // 2. 🔥 THE CRITICAL FIX: Safely convert the dynamic map to Map<String, dynamic>.
-    //    Map.from() creates a new map, enforcing the string key type.
+    // Safely convert the dynamic map to Map<String, dynamic>. Map.from() creates a new map, enforcing the string key type.
     final Map<String, dynamic> data =
         userData != null ? Map<String, dynamic>.from(userData as Map) : {};
 
-    // 3. Construct the model using the guaranteed Map<String, dynamic>
+    //Construct the model using the guaranteed Map<String, dynamic>
     return UserModel(
       id: doc.id,
       email: data['email'] ?? 'No Email Provided',

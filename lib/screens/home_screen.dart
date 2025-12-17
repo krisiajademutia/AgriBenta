@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-
-// Imports
 import 'tabs/marketplace_tab.dart';
 import 'tabs/message_tab.dart';
 import 'tabs/transaction_tab.dart';
@@ -28,15 +26,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: bgCream,
-
       body: IndexedStack(
         index: _currentIndex,
         children: _tabs,
       ),
-
-      // 👇 REMOVED THE FLOATING ACTION BUTTON (ADD BUTTON) HERE
-
-      // UPDATED BOTTOM NAV
       bottomNavigationBar: BottomAppBar(
         color: Colors.white,
         surfaceTintColor: Colors.white,

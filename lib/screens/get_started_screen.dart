@@ -118,7 +118,7 @@ class _GetStartedScreenState extends State<GetStartedScreen>
                             "The easiest way to buy quality products\nand sell to a wider market.",
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                                fontSize: 15,
+                                fontSize: 12,
                                 color: Color(0xFF40755C),
                                 height: 1.5,
                                 fontWeight: FontWeight.w500)),

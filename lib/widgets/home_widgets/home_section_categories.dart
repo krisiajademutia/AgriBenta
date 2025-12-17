@@ -44,13 +44,11 @@ class SectionCategories extends StatelessWidget {
 
               // 1. Convert Firestore Data to your Category Objects
               final categories = snapshot.data?.docs.map((doc) {
-                    // Using YOUR factory method signature: (id, data)
                     return Category.fromSnapshot(
                         doc.id, doc.data() as Map<String, dynamic>);
                   }).toList() ??
                   [];
 
-              // 2. Add "All" manually (Using 'other' to get the grid icon)
               final allCats = [
                 Category(id: '0', name: 'All', iconKey: 'other'),
                 ...categories
@@ -83,7 +81,6 @@ class SectionCategories extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // 👇 USES YOUR HELPER METHOD DIRECTLY
                           Icon(
                             cat.getIcon(),
                             size: 28,
