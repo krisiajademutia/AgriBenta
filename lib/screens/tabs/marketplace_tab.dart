@@ -1,7 +1,10 @@
+import 'package:agribenta/screens/cart_screen.dart';
+import 'package:agribenta/services/cart_manager.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_categories.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_search.dart';
 import 'package:agribenta/widgets/home_widgets/livestock_filter_wrapper.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class MarketplaceTab extends StatefulWidget {
   const MarketplaceTab({super.key});
@@ -59,10 +62,53 @@ class _MarketplaceTabState extends State<MarketplaceTab> {
               ),
               Padding(
                 padding: const EdgeInsets.only(right: 12.0),
-                child: IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.shopping_cart_outlined,
-                      color: textDark, size: 26),
+                child: Consumer<CartManager>(
+                  builder: (context, cartManager, child) {
+                    return Stack(
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const CartScreen()),
+                            );
+                          },
+                          icon: const Icon(Icons.shopping_cart_outlined,
+                              color: textDark, size: 26),
+                        ),
+                        StreamBuilder<int>(
+                          stream: cartManager.cartItemCountStream,
+                          builder: (context, snapshot) {
+                            final itemCount = snapshot.data ?? 0;
+                            if (itemCount == 0) return const SizedBox();
+
+                            return Positioned(
+                              right: 6,
+                              top: 6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                    minWidth: 18, minHeight: 18),
+                                child: Text(
+                                  '$itemCount',
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ],

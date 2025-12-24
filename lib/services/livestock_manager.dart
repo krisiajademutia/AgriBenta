@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'package:agribenta/models/livestock_model.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:agribenta/services/img_bb.dart';
+import 'package:image_picker/image_picker.dart';
 
 class LivestockManager extends ChangeNotifier {
   final _firestore = FirebaseFirestore.instance;
@@ -25,7 +27,7 @@ class LivestockManager extends ChangeNotifier {
   String? _description;
 
   // Image and Loading State
-  List<File> _tempImageFiles = [];
+  //List<File> _tempImageFiles = [];
   bool _isSaving = false;
   bool _isLoadingLocation = false;
 
@@ -46,14 +48,25 @@ class LivestockManager extends ChangeNotifier {
   String? get ageMonths => _ageMonths;
   String? get weight => _weight;
   String? get description => _description;
-  List<File> get tempImageFiles => _tempImageFiles;
+  //List<File> get tempImageFiles => _tempImageFiles;
   bool get isSaving => _isSaving;
   bool get isLoadingLocation => _isLoadingLocation;
   List<String> get availableCategories => _availableCategories;
   bool get isLoadingCategories => _isLoadingCategories;
+  final int _maxImages = 10; // optional, you can reuse
+  List<File> newImages = [];
+  List<String> existingUrls = [];
+  bool isLoading = false;
+  final ImagePicker _picker = ImagePicker();
+
+  //String category = '';
 
   // --- Setters ---
-  void setName(String value) => _name = value;
+  void setName(String value) {
+    _name = value;
+    notifyListeners();
+  }
+
   void setCategory(String value) {
     _category = value;
     notifyListeners();
@@ -61,15 +74,35 @@ class LivestockManager extends ChangeNotifier {
 
   void setPrice(String value) {
     _price = value.isNotEmpty ? double.tryParse(value) : null;
+    notifyListeners();
   }
 
-  void setLocation(String value) => _location = value;
-  void setWeight(String value) => _weight = value;
-  void setDescription(String value) => _description = value;
-  void setAgeYears(String value) => _ageYears = value;
-  void setAgeMonths(String value) => _ageMonths = value;
+  void setWeight(String value) {
+    _weight = value;
+    notifyListeners();
+  }
 
-  void addImageFile(File file) {
+  void setDescription(String value) {
+    _description = value;
+    notifyListeners();
+  }
+
+  void setLocation(String value) {
+    _location = value;
+    notifyListeners();
+  }
+
+  void setAgeYears(String value) {
+    _ageYears = value;
+    notifyListeners();
+  }
+
+  void setAgeMonths(String value) {
+    _ageMonths = value;
+    notifyListeners();
+  }
+
+  /*void addImageFile(File file) {
     _tempImageFiles.add(file);
     notifyListeners();
   }
@@ -77,6 +110,49 @@ class LivestockManager extends ChangeNotifier {
   void removeImageFile(File file) {
     _tempImageFiles.remove(file);
     notifyListeners();
+  }*/
+
+  void initForEdit(Livestock livestock) {
+    _name = livestock.name;
+    _category = livestock.category;
+    _price = livestock.price;
+    _location = livestock.location;
+    _weight = livestock.weight;
+    _description = livestock.description;
+
+    existingUrls = List.from(livestock.imagePaths);
+    newImages.clear();
+
+    notifyListeners();
+  }
+
+  void removeExisting(String url) {
+    existingUrls.remove(url);
+    notifyListeners();
+  }
+
+  void removeNew(int index) {
+    newImages.removeAt(index);
+    notifyListeners();
+  }
+
+  void _toast(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _resetState() {
+    _name = null;
+    _category = null;
+    _price = null;
+    _location = null;
+    _ageYears = null;
+    _ageMonths = null;
+    _weight = null;
+    _description = null;
+    newImages.clear();
+    existingUrls.clear();
   }
 
   // --- Dynamic Category Fetching (UNCHANGED) ---
@@ -173,7 +249,7 @@ class LivestockManager extends ChangeNotifier {
         _price == null ||
         _location == null ||
         _category == null ||
-        _tempImageFiles.isEmpty ||
+        newImages.isEmpty ||
         !isAgeValid ||
         _weight == null ||
         _description == null ||
@@ -187,7 +263,7 @@ class LivestockManager extends ChangeNotifier {
     try {
       // 1. Upload images to imgbb
       List<String> imageUrls =
-          await ImgBBService.uploadLivestockImages(_tempImageFiles) ?? [];
+          await ImgBBService.uploadLivestockImages(newImages) ?? [];
 
       if (imageUrls.isEmpty) {
         debugPrint("Upload failed or returned empty URLs");
@@ -244,15 +320,87 @@ class LivestockManager extends ChangeNotifier {
     }
   }
 
-  void _resetState() {
-    _name = null;
-    _category = null;
-    _price = null;
-    _location = null;
-    _ageYears = null;
-    _ageMonths = null;
-    _weight = null;
-    _description = null;
-    _tempImageFiles = [];
+  Future<void> pickImages() async {
+    final List<XFile>? picked = await _picker.pickMultiImage();
+    if (picked == null) return;
+
+    if (newImages.length + picked.length > _maxImages) return;
+
+    newImages.addAll(picked.map((x) => File(x.path)));
+    notifyListeners();
+  }
+
+  Future<bool> saveEdit(
+    Livestock livestock,
+    BuildContext context,
+  ) async {
+    if (existingUrls.isEmpty && newImages.isEmpty) {
+      _toast(context, "At least one photo is required");
+      return false;
+    }
+
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      // ---------- AGE LOGIC ----------
+      final bool isYearsEntered =
+          _ageYears != null && _ageYears!.trim().isNotEmpty;
+      final bool isMonthsEntered =
+          _ageMonths != null && _ageMonths!.trim().isNotEmpty;
+
+      String ageString = livestock.age;
+
+      if (isYearsEntered || isMonthsEntered) {
+        final String years = isYearsEntered
+            ? '${_ageYears} year${_ageYears == '1' ? '' : 's'}'
+            : '';
+        final String months = isMonthsEntered
+            ? '${_ageMonths} month${_ageMonths == '1' ? '' : 's'}'
+            : '';
+
+        ageString = years.isNotEmpty && months.isNotEmpty
+            ? '$years $months'
+            : (years.isNotEmpty ? years : months);
+      }
+
+      // ---------- IMAGE LOGIC ----------
+      List<String> allUrls = List<String>.from(existingUrls);
+
+      if (newImages.isNotEmpty) {
+        final uploaded = await ImgBBService.uploadLivestockImages(newImages);
+
+        if (uploaded == null || uploaded.isEmpty) {
+          _toast(context, "Image upload failed");
+          return false;
+        }
+
+        allUrls.addAll(uploaded);
+      }
+
+      // ---------- FIRESTORE UPDATE ----------
+      await FirebaseFirestore.instance
+          .collection('livestock')
+          .doc(livestock.id)
+          .update({
+        'name': _name,
+        'category': _category,
+        'price': _price,
+        'age': ageString,
+        'weight': _weight,
+        'location': _location,
+        'description': _description,
+        'imagePath': allUrls.first,
+        'imagePaths': allUrls,
+      });
+
+      return true;
+    } catch (e) {
+      _toast(context, "Error: $e");
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 }

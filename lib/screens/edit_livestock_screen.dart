@@ -1,8 +1,7 @@
-import 'dart:io';
+import 'package:agribenta/services/livestock_manager.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:agribenta/services/img_bb.dart';
+import 'package:provider/provider.dart';
 import '../../models/livestock_model.dart';
 
 class EditLivestockScreen extends StatefulWidget {
@@ -16,7 +15,6 @@ class EditLivestockScreen extends StatefulWidget {
 
 class _EditLivestockScreenState extends State<EditLivestockScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
 
   late TextEditingController _nameController;
   late TextEditingController _priceController;
@@ -24,11 +22,6 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
   late TextEditingController _weightController;
   late TextEditingController _locationController;
   late TextEditingController _descController;
-
-  String _selectedCategory = '';
-  List<File> _newImages = [];
-  List<String> _existingUrls = [];
-  final int _maxImages = 10;
 
   final Map<String, IconData> _iconRegistry = {
     'cow': Icons.catching_pokemon,
@@ -58,8 +51,8 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
     _locationController =
         TextEditingController(text: widget.livestock.location);
     _descController = TextEditingController(text: widget.livestock.description);
-    _selectedCategory = widget.livestock.category;
-    _existingUrls = List.from(widget.livestock.imagePaths);
+    final manager = context.read<LivestockManager>();
+    manager.initForEdit(widget.livestock);
   }
 
   @override
@@ -73,87 +66,9 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImages() async {
-    if (_newImages.length + _existingUrls.length >= _maxImages) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Maximum 10 images allowed")),
-      );
-      return;
-    }
-    final picked = await ImagePicker().pickMultiImage(imageQuality: 70);
-    if (picked.isNotEmpty) {
-      setState(() {
-        int remaining = _maxImages - _existingUrls.length;
-        _newImages.addAll(picked.take(remaining).map((x) => File(x.path)));
-      });
-    }
-  }
-
-  void _removeNew(int index) => setState(() => _newImages.removeAt(index));
-  void _removeExisting(String url) => setState(() => _existingUrls.remove(url));
-
-  Future<void> _saveChanges() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_existingUrls.isEmpty && _newImages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("At least one photo is required")),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      List<String> allUrls = List.from(_existingUrls);
-
-      if (_newImages.isNotEmpty) {
-        List<String>? uploaded =
-            await ImgBBService.uploadLivestockImages(_newImages);
-        if (uploaded == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Image upload failed")),
-          );
-          setState(() => _isLoading = false);
-          return;
-        }
-        allUrls.addAll(uploaded);
-      }
-
-      await FirebaseFirestore.instance
-          .collection('livestock')
-          .doc(widget.livestock.id)
-          .update({
-        'name': _nameController.text.trim(),
-        'category': _selectedCategory,
-        'price': double.tryParse(_priceController.text) ?? 0.0,
-        'age': _ageController.text.trim(),
-        'weight': _weightController.text.trim(),
-        'location': _locationController.text.trim(),
-        'description': _descController.text.trim(),
-        'imagePath': allUrls.first,
-        'imagePaths': allUrls,
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("Listing updated successfully!"),
-            backgroundColor: brandGreen,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final manager = context.watch<LivestockManager>();
     return Scaffold(
       backgroundColor: bgCream,
       appBar: AppBar(
@@ -172,7 +87,16 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
         child: ElevatedButton(
-          onPressed: _isLoading ? null : _saveChanges,
+          onPressed: manager.isLoading
+              ? null
+              : () async {
+                  if (!_formKey.currentState!.validate()) return;
+
+                  final success =
+                      await manager.saveEdit(widget.livestock, context);
+
+                  if (success && mounted) Navigator.pop(context);
+                },
           style: ElevatedButton.styleFrom(
             backgroundColor: brandGreen,
             foregroundColor: Colors.white,
@@ -180,7 +104,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
-          child: _isLoading
+          child: manager.isLoading
               ? const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -213,11 +137,13 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                 height: 120,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  itemCount: _existingUrls.length + _newImages.length + 1,
+                  itemCount: manager.existingUrls.length +
+                      manager.newImages.length +
+                      1,
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return GestureDetector(
-                        onTap: _pickImages,
+                        onTap: () => manager.pickImages(),
                         child: Container(
                           width: 120,
                           margin: const EdgeInsets.only(right: 12),
@@ -234,8 +160,8 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                     }
                     index--;
 
-                    if (index < _existingUrls.length) {
-                      final url = _existingUrls[index];
+                    if (index < manager.existingUrls.length) {
+                      final url = manager.existingUrls[index];
                       return Container(
                         width: 120,
                         margin: const EdgeInsets.only(right: 12),
@@ -247,7 +173,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                         child: Align(
                           alignment: Alignment.topRight,
                           child: GestureDetector(
-                            onTap: () => _removeExisting(url),
+                            onTap: () => manager.removeExisting(url),
                             child: Container(
                               margin: const EdgeInsets.all(5),
                               padding: const EdgeInsets.all(4),
@@ -261,20 +187,20 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                       );
                     }
 
-                    index -= _existingUrls.length;
+                    index -= manager.existingUrls.length;
                     return Container(
                       width: 120,
                       margin: const EdgeInsets.only(right: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         image: DecorationImage(
-                            image: FileImage(_newImages[index]),
+                            image: FileImage(manager.newImages[index]),
                             fit: BoxFit.cover),
                       ),
                       child: Align(
                         alignment: Alignment.topRight,
                         child: GestureDetector(
-                          onTap: () => _removeNew(index),
+                          onTap: () => manager.removeNew(index),
                           child: Container(
                             margin: const EdgeInsets.all(5),
                             padding: const EdgeInsets.all(4),
@@ -316,11 +242,10 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                         final String catName = data['name'] ?? 'Unknown';
                         final String iconKey = data['icon_key'] ?? 'other';
 
-                        final bool isSelected = _selectedCategory == catName;
+                        final bool isSelected = manager.category == catName;
 
                         return GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedCategory = catName),
+                          onTap: () => manager.setCategory(catName),
                           child: Container(
                             margin: const EdgeInsets.only(right: 12),
                             padding: const EdgeInsets.symmetric(
@@ -367,6 +292,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
               _buildInputCard(
                 child: TextFormField(
                   controller: _nameController,
+                  onChanged: manager.setName,
                   validator: (v) =>
                       v?.trim().isEmpty ?? true ? "Title required" : null,
                   decoration: _inputDeco("Title", "e.g. Brahman Bull"),
@@ -376,6 +302,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
               _buildInputCard(
                 child: TextFormField(
                   controller: _priceController,
+                  onChanged: manager.setPrice,
                   keyboardType: TextInputType.number,
                   validator: (v) =>
                       v?.isEmpty ?? true ? "Price required" : null,
@@ -389,6 +316,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                     child: _buildInputCard(
                       child: TextFormField(
                         controller: _weightController,
+                        onChanged: manager.setWeight,
                         decoration: _inputDeco("Weight", "kg"),
                       ),
                     ),
@@ -398,6 +326,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                     child: _buildInputCard(
                       child: TextFormField(
                         controller: _ageController,
+                        onChanged: manager.setAgeMonths,
                         decoration: _inputDeco("Age", "yrs"),
                       ),
                     ),
@@ -408,6 +337,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
               _buildInputCard(
                 child: TextFormField(
                   controller: _locationController,
+                  onChanged: manager.setLocation,
                   decoration: _inputDeco("Location", "City, Province",
                       icon: Icons.location_on_outlined),
                 ),
@@ -418,6 +348,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
               _buildInputCard(
                 child: TextFormField(
                   controller: _descController,
+                  onChanged: manager.setDescription,
                   maxLines: 5,
                   decoration: _inputDeco("Describe...", "", isMultiLine: true),
                 ),

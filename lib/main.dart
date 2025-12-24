@@ -1,3 +1,5 @@
+import 'package:agribenta/screens/cart_screen.dart';
+import 'package:agribenta/services/cart_manager.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +33,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ProfileManager()),
         ChangeNotifierProvider(create: (_) => LivestockManager()),
         ChangeNotifierProvider(create: (_) => UserRoleManager()),
+        ChangeNotifierProvider(create: (_) => CartManager()),
       ],
       child: const AgriBentaApp(),
     ),
@@ -70,6 +73,7 @@ class AgriBentaApp extends StatelessWidget {
         '/login': (_) => const LoginScreen(),
         '/register': (_) => const RegisterScreen(),
         '/home': (_) => const HomeScreen(),
+        '/cart': (_) => const CartScreen(),
       },
     );
   }

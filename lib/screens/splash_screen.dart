@@ -106,6 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Enhanced Premium Logo with Multiple Effects
             ScaleTransition(
               scale: _logoScaleAnimation,
               child: RotationTransition(
@@ -326,11 +327,15 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
 
+                    // Subtitle with fade-in
+                    // Subtitle with fade-in
                     Opacity(
+                      // FIX: Add .clamp(0.0, 1.0) to prevent crash
                       opacity: (_textAnimation.value > 0.7
                               ? (_textAnimation.value - 0.7) / 0.3
                               : 0.0)
                           .clamp(0.0, 1.0),
+
                       child: Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
