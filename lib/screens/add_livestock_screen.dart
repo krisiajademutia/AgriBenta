@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,11 +17,14 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   // Controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _shippingController =
+      TextEditingController(); // Shipping
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  // Icon Registry
+
+  // --- RESTORED: Your Original Icon Registry ---
   final Map<String, IconData> _iconRegistry = {
     'cow': Icons.catching_pokemon,
     'carabao': Icons.agriculture,
@@ -32,10 +36,9 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   };
 
   IconData _getIconFromKey(String key) {
-    return _iconRegistry[key] ?? Icons.help_outline; // Default if not found
+    return _iconRegistry[key] ?? Icons.help_outline;
   }
 
-  // Theme Colors
   final Color bgCream = const Color(0xFFF9F6F0);
   final Color textDark = const Color(0xFF1B4332);
   final Color brandGreen = const Color(0xFF52B788);
@@ -43,9 +46,9 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   @override
   Widget build(BuildContext context) {
     final manager = context.watch<LivestockManager>();
+
     return Scaffold(
       backgroundColor: bgCream,
-      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: bgCream,
         elevation: 0,
@@ -56,68 +59,49 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
             style: TextStyle(color: textDark, fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(20),
         child: ElevatedButton(
           onPressed: manager.isSaving
               ? null
               : () async {
+                  if (!_formKey.currentState!.validate()) return;
                   final success = await manager.postListing();
-
-                  if (!context.mounted) return;
-
-                  if (success) {
+                  if (success && mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: const Text("Success!"),
-                        backgroundColor: brandGreen,
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Please complete all required fields"),
-                      ),
+                          content: const Text("Success!"),
+                          backgroundColor: brandGreen),
                     );
                   }
                 },
           style: ElevatedButton.styleFrom(
             backgroundColor: brandGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            elevation: 6,
-            shadowColor: brandGreen.withOpacity(0.5),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: manager.isSaving
               ? const SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
+                  child: CircularProgressIndicator(color: Colors.white))
               : const Text("Post Listing",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
         ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          20, // Left
-          10, // Top
-          20, // Right
-          MediaQuery.of(context).viewPadding.bottom + 100,
-        ),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // PHOTO GALLERY (Same UI as before)
+              // 1. PHOTOS
               _buildSectionTitle("Photos"),
               const SizedBox(height: 10),
               SizedBox(
@@ -128,15 +112,15 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return GestureDetector(
-                        onTap: () => manager.pickImages(),
+                        onTap: manager.pickImages,
                         child: Container(
                           width: 120,
                           margin: const EdgeInsets.only(right: 12),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                                color: brandGreen.withOpacity(0.3), width: 1.5),
+                            border:
+                                Border.all(color: brandGreen.withOpacity(0.3)),
                           ),
                           child: Icon(Icons.add_a_photo_rounded,
                               size: 30, color: brandGreen),
@@ -156,14 +140,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                         alignment: Alignment.topRight,
                         child: GestureDetector(
                           onTap: () => manager.removeNew(index - 1),
-                          child: Container(
-                            margin: const EdgeInsets.all(5),
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                                color: Colors.white, shape: BoxShape.circle),
-                            child: const Icon(Icons.close,
-                                size: 14, color: Colors.red),
-                          ),
+                          child: const Icon(Icons.cancel, color: Colors.red),
                         ),
                       ),
                     );
@@ -173,22 +150,22 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
 
               const SizedBox(height: 24),
 
-              // --- DYNAMIC CATEGORIES FROM FIRESTORE ---
+              // 2. CATEGORY (RESTORED WITH ICONS)
               _buildSectionTitle("Category"),
               const SizedBox(height: 10),
-
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('categories')
                     .snapshots(),
                 builder: (context, snapshot) {
-                  if (!snapshot.hasData)
-                    return const Center(child: CircularProgressIndicator());
+                  // FIX: Use SizedBox instead of Center to prevent layout crash
+                  if (!snapshot.hasData) {
+                    return const SizedBox(
+                        height: 50,
+                        child: Center(child: LinearProgressIndicator()));
+                  }
 
                   final categoriesDocs = snapshot.data!.docs;
-
-                  // Sort alphabetically
-                  categoriesDocs.sort((a, b) => a['name'].compareTo(b['name']));
 
                   return SizedBox(
                     height: 50,
@@ -199,14 +176,12 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                         final data = categoriesDocs[index].data()
                             as Map<String, dynamic>;
                         final String catName = data['name'] ?? 'Unknown';
+                        // Get Icon Key from Firestore
                         final String iconKey = data['icon_key'] ?? 'other';
-
                         final bool isSelected = manager.category == catName;
 
                         return GestureDetector(
-                          onTap: () {
-                            manager.setCategory(catName);
-                          },
+                          onTap: () => manager.setCategory(catName),
                           child: Container(
                             margin: const EdgeInsets.only(right: 12),
                             padding: const EdgeInsets.symmetric(
@@ -221,22 +196,19 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                             ),
                             child: Row(
                               children: [
-                                // LOOKUP ICON FROM REGISTRY
+                                // Show the Icon
                                 Icon(_getIconFromKey(iconKey),
                                     size: 18,
                                     color: isSelected
                                         ? Colors.white
                                         : Colors.grey[600]),
                                 const SizedBox(width: 8),
-                                Text(
-                                  catName,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey[600],
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                Text(catName,
+                                    style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey[600],
+                                        fontWeight: FontWeight.bold)),
                               ],
                             ),
                           ),
@@ -249,6 +221,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
 
               const SizedBox(height: 24),
 
+              // 3. DETAILS INPUTS
               _buildSectionTitle("Item Details"),
               const SizedBox(height: 10),
               _buildInputCard(
@@ -257,12 +230,32 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                       onChanged: manager.setName,
                       decoration: _inputDeco("Title", "e.g. Brahman Bull"))),
               const SizedBox(height: 12),
-              _buildInputCard(
-                  child: TextFormField(
-                      controller: _priceController,
-                      onChanged: manager.setPrice,
-                      keyboardType: TextInputType.number,
-                      decoration: _inputDeco("Price", "0.00", prefix: "₱ "))),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInputCard(
+                        child: TextFormField(
+                            controller: _priceController,
+                            onChanged: manager.setPrice,
+                            keyboardType: TextInputType.number,
+                            decoration:
+                                _inputDeco("Price", "0.00", prefix: "₱ "))),
+                  ),
+                  const SizedBox(width: 12),
+                  // Shipping Fee Input
+                  Expanded(
+                    child: _buildInputCard(
+                        child: TextFormField(
+                            controller: _shippingController,
+                            onChanged: manager.setShippingFee,
+                            keyboardType: TextInputType.number,
+                            decoration:
+                                _inputDeco("Shipping", "Fee", prefix: "₱ "))),
+                  ),
+                ],
+              ),
+
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(
@@ -276,7 +269,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                     child: _buildInputCard(
                         child: TextFormField(
                             controller: _ageController,
-                            onChanged: manager.setAgeMonths, // or years
+                            onChanged: manager.setAgeMonths,
                             decoration: _inputDeco("Age", "months")))),
               ]),
               const SizedBox(height: 12),
@@ -305,7 +298,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     );
   }
 
-  // Helpers
   Widget _buildSectionTitle(String t) => Text(t,
       style: TextStyle(
           fontSize: 16, fontWeight: FontWeight.bold, color: textDark));

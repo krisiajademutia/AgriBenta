@@ -16,6 +16,7 @@ class LivestockManager extends ChangeNotifier {
   String? _name;
   String? _category;
   double? _price;
+  double? _shippingFee;
   String? _location;
 
   // Age State
@@ -50,6 +51,7 @@ class LivestockManager extends ChangeNotifier {
   String? get description => _description;
   //List<File> get tempImageFiles => _tempImageFiles;
   bool get isSaving => _isSaving;
+  double? get shippingFee => _shippingFee;
   bool get isLoadingLocation => _isLoadingLocation;
   List<String> get availableCategories => _availableCategories;
   bool get isLoadingCategories => _isLoadingCategories;
@@ -74,6 +76,11 @@ class LivestockManager extends ChangeNotifier {
 
   void setPrice(String value) {
     _price = value.isNotEmpty ? double.tryParse(value) : null;
+    notifyListeners();
+  }
+
+  void setShippingFee(String value) {
+    _shippingFee = value.isNotEmpty ? double.tryParse(value) : null;
     notifyListeners();
   }
 
@@ -116,6 +123,7 @@ class LivestockManager extends ChangeNotifier {
     _name = livestock.name;
     _category = livestock.category;
     _price = livestock.price;
+    _shippingFee = livestock.shippingFee;
     _location = livestock.location;
     _weight = livestock.weight;
     _description = livestock.description;
@@ -146,6 +154,7 @@ class LivestockManager extends ChangeNotifier {
     _name = null;
     _category = null;
     _price = null;
+    _shippingFee = null;
     _location = null;
     _ageYears = null;
     _ageMonths = null;
@@ -247,6 +256,7 @@ class LivestockManager extends ChangeNotifier {
     if (_name == null ||
         _name!.trim().isEmpty ||
         _price == null ||
+        _shippingFee == null ||
         _location == null ||
         _category == null ||
         newImages.isEmpty ||
@@ -294,6 +304,7 @@ class LivestockManager extends ChangeNotifier {
         'name': _name!.trim(),
         'category': _category,
         'price': _price,
+        'shippingFee': _shippingFee,
         'location': _location,
         'age': ageString,
         'weight': _weight,
@@ -303,6 +314,7 @@ class LivestockManager extends ChangeNotifier {
         'imagePaths': imageUrls,
         'sellerId': _auth.currentUser!.uid,
         'postedAt': FieldValue.serverTimestamp(),
+        'status': 'active', // Ensure status is set
       };
 
       // 3. Save to Firestore
@@ -386,6 +398,7 @@ class LivestockManager extends ChangeNotifier {
         'name': _name,
         'category': _category,
         'price': _price,
+        'shippingFee': _shippingFee,
         'age': ageString,
         'weight': _weight,
         'location': _location,

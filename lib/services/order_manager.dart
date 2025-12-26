@@ -1,9 +1,7 @@
-// lib/services/order_manager.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../models/livestock_model.dart';
+import '../services/cart_manager.dart';
 
 class OrderManager {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -11,99 +9,128 @@ class OrderManager {
 
   User? get currentUser => _auth.currentUser;
 
-  // Generate consistent chat room ID (sorted to avoid duplicates)
   String _generateChatRoomId(String uid1, String uid2) {
     final List<String> ids = [uid1, uid2]..sort();
     return '${ids[0]}_${ids[1]}';
   }
 
-  Future<bool> createDirectOrder(
-      Livestock livestock, BuildContext context) async {
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please log in to buy")),
-      );
-      Navigator.pushNamed(context, '/login');
-      return false;
-    }
-
-    if (currentUser!.uid == livestock.sellerId) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("You cannot buy your own listing")),
-      );
-      return false;
-    }
+  Future<bool> placeOrder({
+    required List<CartItem> items,
+    required double totalAmount,
+    required String deliveryAddress,
+    required String paymentMethod,
+    required bool isPickup, // <--- ADDED THIS PARAMETER
+    required BuildContext context,
+  }) async {
+    if (currentUser == null) return false;
 
     try {
       final batch = _firestore.batch();
+      final buyerId = currentUser!.uid;
+      final String cleanAddress = deliveryAddress.toLowerCase().trim();
 
-      // 1. Create order document
-      final orderRef = _firestore.collection('orders').doc();
-      final chatRoomId =
-          _generateChatRoomId(currentUser!.uid, livestock.sellerId);
+      // 1. Group items by Seller
+      Map<String, List<CartItem>> itemsBySeller = {};
+      for (var item in items) {
+        final sellerId = item.livestock.sellerId;
+        if (!itemsBySeller.containsKey(sellerId)) {
+          itemsBySeller[sellerId] = [];
+        }
+        itemsBySeller[sellerId]!.add(item);
+      }
 
-      batch.set(orderRef, {
-        'orderId': orderRef.id,
-        'buyerId': currentUser!.uid,
-        'sellerId': livestock.sellerId,
-        'livestockId': livestock.id,
-        'livestockName': livestock.name,
-        'price': livestock.price,
-        'imagePath': livestock.imagePath,
-        'status': 'pending', // pending → confirmed → completed
-        'chatRoomId': chatRoomId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // 2. Create Order per Seller
+      for (var sellerId in itemsBySeller.keys) {
+        final sellerItems = itemsBySeller[sellerId]!;
 
-      // 2. Update livestock status to prevent double-selling
-      final livestockRef = _firestore.collection('livestock').doc(livestock.id);
-      batch.update(livestockRef, {
-        'status': 'pending',
-        'pendingBuyerId': currentUser!.uid,
-      });
+        double orderSubtotal = 0.0;
+        double orderShippingFee = 0.0;
+        List<Map<String, dynamic>> orderItemsData = [];
 
-      // 3. Optional: Create initial chat room if not exists
-      final chatRef = _firestore.collection('chats').doc(chatRoomId);
-      batch.set(
-          chatRef,
-          {
-            'participants': [currentUser!.uid, livestock.sellerId],
-            'lastMessage': 'Buyer expressed interest via Buy Now',
-            'lastMessageTime': FieldValue.serverTimestamp(),
-            'livestockId': livestock.id,
-          },
-          SetOptions(merge: true));
+        // Calculate Totals
+        for (var item in sellerItems) {
+          orderSubtotal += item.totalPrice;
+
+          // --- SHIPPING LOGIC ---
+          if (isPickup) {
+            orderShippingFee += 0.0; // Free if pickup
+          } else {
+            // Distance Logic
+            double baseFee = item.livestock.shippingFee;
+            String sellerLoc = item.livestock.location.toLowerCase().trim();
+            bool isSameCity = cleanAddress.contains(sellerLoc) ||
+                sellerLoc.contains(cleanAddress);
+
+            if (isSameCity) {
+              orderShippingFee += baseFee;
+            } else {
+              orderShippingFee += (baseFee + 500.0); // Distance Surcharge
+            }
+          }
+
+          orderItemsData.add({
+            'livestockId': item.livestock.id,
+            'name': item.livestock.name,
+            'quantity': item.quantity,
+            'price': item.livestock.price,
+            'shippingFee': item.livestock.shippingFee,
+            'imagePath': item.livestock.imagePath,
+          });
+        }
+
+        double finalOrderTotal = orderSubtotal + orderShippingFee;
+
+        final orderRef = _firestore.collection('orders').doc();
+        final chatRoomId = _generateChatRoomId(buyerId, sellerId);
+
+        batch.set(orderRef, {
+          'orderId': orderRef.id,
+          'buyerId': buyerId,
+          'sellerId': sellerId,
+          'items': orderItemsData,
+          'itemSubtotal': orderSubtotal,
+          'shippingFee': orderShippingFee,
+          'totalAmount': finalOrderTotal,
+          'status': 'pending',
+          'deliveryAddress':
+              isPickup ? "CUSTOMER PICKUP" : deliveryAddress, // Mark as pickup
+          'paymentMethod': paymentMethod,
+          'isPickup': isPickup, // Save the flag
+          'chatRoomId': chatRoomId,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        // Update Livestock Status
+        for (var item in sellerItems) {
+          final livestockRef =
+              _firestore.collection('livestock').doc(item.livestock.id);
+          batch.update(livestockRef, {
+            'status': 'pending',
+            'pendingBuyerId': buyerId,
+          });
+        }
+
+        // Create Chat Room
+        final chatRef = _firestore.collection('chats').doc(chatRoomId);
+        batch.set(
+            chatRef,
+            {
+              'participants': [buyerId, sellerId],
+              'lastMessage':
+                  'New Order: ₱${finalOrderTotal.toStringAsFixed(0)}',
+              'lastMessageTime': FieldValue.serverTimestamp(),
+              'hasUnread': true,
+            },
+            SetOptions(merge: true));
+      }
 
       await batch.commit();
-
-      if (!context.mounted) return true;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Purchase initiated! Opening chat with seller..."),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
-      );
-
-      // Navigate to chat (you can create ChatScreen later)
-      /* Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChatScreen(
-            chatRoomId: chatRoomId,
-            sellerId: livestock.sellerId,
-            livestockName: livestock.name,
-            livestockImage: livestock.imagePath,
-          ),
-        ),
-      );*/
-
       return true;
     } catch (e) {
+      debugPrint("Order Error: $e");
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to buy: $e")),
+          SnackBar(content: Text("Failed to place order: $e")),
         );
       }
       return false;

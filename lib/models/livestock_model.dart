@@ -6,6 +6,7 @@ class Livestock {
   final String name;
   final String category;
   final double price;
+  final double shippingFee;
   final String age;
   final String weight;
   final String location;
@@ -21,6 +22,7 @@ class Livestock {
     required this.name,
     required this.category,
     required this.price,
+    required this.shippingFee,
     required this.age,
     required this.weight,
     required this.location,
@@ -42,13 +44,15 @@ class Livestock {
     }
 
     return Livestock(
-      // Ensure 'id' is extracted from the snapshot and passed in the map if needed
       id: json['id'] ?? '',
       sellerId: json['sellerId'] ?? '',
       name: json['name'] ?? 'Untitled Livestock',
       category: json['category'] ?? 'Other',
-      // Cast the 'num' from Firestore to a double
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
+
+      // <--- 3. ADD PARSING LOGIC HERE
+      shippingFee: (json['shippingFee'] as num?)?.toDouble() ?? 0.0,
+
       age: json['age'] ?? 'N/A',
       weight: json['weight'] ?? 'N/A',
       location: json['location'] ?? 'Unknown Location',

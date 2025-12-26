@@ -1,5 +1,6 @@
 // lib/screens/cart_screen.dart
 
+import 'package:agribenta/screens/checkout_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/cart_manager.dart';
@@ -114,17 +115,26 @@ class CartScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        // ... inside the Column, find the "Total & Checkout" container ...
+
                         SizedBox(
                           width: double.infinity,
                           height: 55,
                           child: ElevatedButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text(
-                                        "Checkout coming soon! Stay tuned 🚀")),
-                              );
-                            },
+                            onPressed: cartItems.isEmpty
+                                ? null // Disable if empty
+                                : () {
+                                    // Navigate to Checkout with all cart items
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CheckoutScreen(
+                                          items: cartItems,
+                                          totalAmount: totalPrice,
+                                        ),
+                                      ),
+                                    );
+                                  },
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: brandGreen,
                                 shape: RoundedRectangleBorder(

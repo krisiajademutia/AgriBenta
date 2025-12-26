@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'tabs/marketplace_tab.dart';
 import 'tabs/message_tab.dart';
-import 'tabs/transaction_tab.dart';
+import 'tabs/orders_tab.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,7 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _tabs = [
     const MarketplaceTab(),
     const MessageTab(),
-    const TransactionTab(),
+    const OrdersTab(),
     const ProfileScreen(),
   ];
 

@@ -1,12 +1,20 @@
+import 'package:agribenta/screens/tabs/orders_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+
+// --- SCREENS ---
 import 'add_livestock_screen.dart';
 import 'edit_profile_screen.dart';
+import 'seller_orders_screen.dart'; // <--- NEW IMPORT
+
+// --- MODELS & SERVICES ---
 import '../models/user_model.dart';
 import '../models/livestock_model.dart';
 import '../services/user_role_manager.dart';
+
+// --- WIDGETS ---
 import '../widgets/profile_widgets/profile_header.dart';
 import '../widgets/profile_widgets/profile_stats_row.dart';
 import '../widgets/profile_widgets/profile_listings_tab.dart';
@@ -58,8 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final bool hasStartedSelling = roleManager.hasTappedStartSelling;
 
             return Scaffold(
-              backgroundColor: bgCream, // <--- Cream Background
-
+              backgroundColor: bgCream,
               body: SafeArea(
                 bottom: false,
                 child: SingleChildScrollView(
@@ -122,8 +129,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             const SizedBox(height: 20),
 
+                            // --- SELLER VIEW ---
                             if (roleManager.isSeller) ...[
-                              // Dynamic Stats Row at the top
+                              // Dynamic Stats Row
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
                                     .collection('livestock')
@@ -136,7 +144,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                                   if (snapshot.hasData) {
                                     totalListings = snapshot.data!.docs.length;
-
                                     for (var doc in snapshot.data!.docs) {
                                       final data =
                                           doc.data() as Map<String, dynamic>;
@@ -160,10 +167,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                               const SizedBox(height: 20),
 
-                              // My Listings Tab with All/Active/Sold filters (dynamic)
+                              // --- [NEW] MY SALES DASHBOARD BUTTON ---
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20.0),
+                                child: _buildActionTile(
+                                  "My Sales (Seller Dashboard)",
+                                  Icons.storefront_outlined,
+                                  () {
+                                    Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const SellerOrdersScreen()));
+                                  },
+                                  isHighlight: true, // Special styling
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              // My Listings Tab
                               _buildSellerListings(user.uid),
                             ]
-                            // BUYER VIEW
+
+                            // --- BUYER VIEW ---
                             else
                               Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -178,10 +206,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             fontWeight: FontWeight.bold,
                                             color: textDark)),
                                     const SizedBox(height: 15),
-                                    _buyerActionTile("My Orders",
-                                        Icons.receipt_long_outlined),
-                                    _buyerActionTile("Saved Items",
-                                        Icons.favorite_border_outlined),
+
+                                    // [NEW] Linked to OrderHistoryScreen
+                                    _buildActionTile("My Orders",
+                                        Icons.receipt_long_outlined, () {
+                                      Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const OrdersTab()));
+                                    }),
+
+                                    _buildActionTile("Saved Items",
+                                        Icons.favorite_border_outlined, () {
+                                      // TODO: Navigate to Wishlist
+                                    }),
                                   ],
                                 ),
                               ),
@@ -200,7 +239,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // --- HELPER WIDGETS ---
 
-  // The White "Start Selling" Card
   Widget _buildStartSellingCard(UserRoleManager roleManager) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -261,7 +299,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Fetches data and passes it to ProfileListingsTab
   Widget _buildSellerListings(String userId) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -274,14 +311,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return Center(child: CircularProgressIndicator(color: brandGreen));
         }
 
-        // Convert Firestore docs to Models
         final List<Livestock> listings =
             snapshot.data?.docs.map<Livestock>((doc) {
                   return Livestock.fromSnapshot(doc);
                 }).toList() ??
                 [];
 
-        // Use the Widget you uploaded!
         return ProfileListingsTab(
           listings: listings,
           onAddListing: () => Navigator.push(context,
@@ -291,12 +326,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buyerActionTile(String title, IconData icon) {
+  // UPDATED: Now accepts onTap and has optional highlighting
+  Widget _buildActionTile(String title, IconData icon, VoidCallback onTap,
+      {bool isHighlight = false}) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isHighlight ? Colors.orange.withOpacity(0.1) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: isHighlight
+            ? Border.all(color: Colors.orange.withOpacity(0.3))
+            : null,
         boxShadow: [
           BoxShadow(
               color: textDark.withOpacity(0.05),
@@ -308,15 +348,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-              color: const Color(0xFFF0F7F4),
+              color: isHighlight ? Colors.white : const Color(0xFFF0F7F4),
               borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: brandGreen),
+          child: Icon(icon, color: isHighlight ? Colors.orange : brandGreen),
         ),
         title: Text(title,
             style: TextStyle(fontWeight: FontWeight.bold, color: textDark)),
         trailing: Icon(Icons.arrow_forward_ios,
             size: 16, color: Colors.grey.shade400),
-        onTap: () {},
+        onTap: onTap,
       ),
     );
   }

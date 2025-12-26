@@ -44,6 +44,7 @@ class CartManager extends ChangeNotifier {
         'livestockId': livestock.id,
         'name': livestock.name,
         'price': livestock.price,
+        'shippingFee': livestock.shippingFee,
         'imagePath': livestock.imagePath,
         'sellerId': livestock.sellerId,
         'quantity':
@@ -136,6 +137,7 @@ class CartManager extends ChangeNotifier {
             sellerId: data['sellerId'] ?? '',
             name: data['name'] ?? 'Unknown',
             price: (data['price'] as num?)?.toDouble() ?? 0.0,
+            shippingFee: (data['shippingFee'] as num?)?.toDouble() ?? 0.0,
             imagePath: data['imagePath'] ?? '',
             imagePaths: [data['imagePath'] ?? ''],
             category: 'Unknown',

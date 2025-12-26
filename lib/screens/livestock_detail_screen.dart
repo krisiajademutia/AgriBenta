@@ -1,11 +1,10 @@
-import 'package:agribenta/services/order_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:provider/provider.dart';
 import '../../models/livestock_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/cart_manager.dart';
+import 'checkout_screen.dart';
 
 class LivestockDetailScreen extends StatefulWidget {
   final Livestock livestock;
@@ -66,30 +65,21 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Confirm Purchase"),
-        content: Text(
-          "Buy ${widget.livestock.name} for ₱${widget.livestock.price.toStringAsFixed(0)}?",
+    // 1. Create a temporary CartItem just for this transaction
+    final buyNowItem = CartItem(
+      id: 'buy_now_${DateTime.now().millisecondsSinceEpoch}',
+      livestock: widget.livestock,
+      quantity: 1,
+    );
+
+    // 2. Navigate to Checkout
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CheckoutScreen(
+          items: [buyNowItem], // Pass as a list of 1
+          totalAmount: widget.livestock.price,
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content:
-                      Text("Proceeding to checkout... (Payment coming soon!)"),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            },
-            child: const Text("Confirm", style: TextStyle(color: Colors.green)),
-          ),
-        ],
       ),
     );
   }
@@ -439,27 +429,18 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: IconButton(
-                    icon: Icon(Icons.chat_bubble_outline,
-                        color: textDark, size: 22),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Opening chat with seller..."),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    },
+                    icon: const Icon(Icons.chat_bubble_outline,
+                        color: Color(0xFF1B4332), size: 22),
+                    onPressed: _contactSeller, // Use the method defined at top
                   ),
                 ),
                 const SizedBox(width: 12),
 
-                // Add to Cart Button – With Loading State
+                // Add to Cart Button
                 Expanded(
                   child: Consumer<CartManager>(
                     builder: (context, cartManager, child) {
-                      // Simple loading state — you can expand CartManager later if needed
-                      bool isLoading = false; // We'll use a local state for now
-
+                      bool isLoading = false;
                       return StatefulBuilder(
                         builder: (context, setState) {
                           return SizedBox(
@@ -469,8 +450,8 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                                   ? null
                                   : () async {
                                       setState(() => isLoading = true);
-                                      final success = await cartManager
-                                          .addToCart(widget.livestock, context);
+                                      await cartManager.addToCart(
+                                          widget.livestock, context);
                                       if (mounted) {
                                         setState(() => isLoading = false);
                                       }
@@ -507,53 +488,14 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                 ),
                 const SizedBox(width: 10),
 
-                // Buy Now Button
+                // Buy Now Button (FIXED HERE)
                 Expanded(
                   child: SizedBox(
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text("Buy Now"),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text("Item: ${widget.livestock.name}"),
-                                Text(
-                                    "Price: ₱${widget.livestock.price.toStringAsFixed(0)}"),
-                                const SizedBox(height: 12),
-                                const Text(
-                                  "You will be connected with the seller to arrange payment and pickup.",
-                                  style: TextStyle(
-                                      fontSize: 14, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: const Text("Cancel")),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text("Confirm Buy",
-                                    style: TextStyle(
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (confirm != true) return;
-
-                        // Execute Buy Now
-                        final orderManager = OrderManager();
-                        await orderManager.createDirectOrder(
-                            widget.livestock, context);
-                      },
+                      // We simply call the _buyNow function defined at the top of your class
+                      // This validates the user and sends them to the CheckoutScreen
+                      onPressed: _buyNow,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF52B788),
                         foregroundColor: Colors.white,
