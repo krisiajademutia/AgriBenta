@@ -4,9 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String chatId; // The unique ID for this conversation
-  final String otherUserId; // The person you are talking to
-  final String otherUserName; // Their name (for the AppBar)
+  final String chatId;
+  final String otherUserId;
+  final String otherUserName;
 
   const ChatScreen({
     super.key,
@@ -24,6 +24,21 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final currentUser = FirebaseAuth.instance.currentUser!;
 
+  // Define the stream variable here so it doesn't reload the UI every time
+  late Stream<QuerySnapshot> _messagesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the stream ONCE when the screen opens
+    _messagesStream = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
@@ -31,49 +46,63 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // --- SEND MESSAGE FUNCTION ---
+  // --- SEND MESSAGE FUNCTION (Optimized: No Loading Spinner) ---
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
     final messageText = _messageController.text.trim();
+
+    // Clear input immediately so it feels instant
     _messageController.clear();
 
-    final batch = FirebaseFirestore.instance.batch();
+    try {
+      final batch = FirebaseFirestore.instance.batch();
 
-    // 1. Add message to the subcollection
-    final messageRef = FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .doc();
+      // 1. Prepare Message
+      final messageRef = FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc();
 
-    batch.set(messageRef, {
-      'senderId': currentUser.uid,
-      'text': messageText,
-      'createdAt': FieldValue.serverTimestamp(),
-      'isRead': false,
-    });
+      batch.set(messageRef, {
+        'senderId': currentUser.uid,
+        'text': messageText,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
 
-    // 2. Update the main chat document (for the Inbox list)
-    final chatRef =
-        FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
-    batch.update(chatRef, {
-      'lastMessage': messageText,
-      'lastMessageTime': FieldValue.serverTimestamp(),
-      'participants': [
-        currentUser.uid,
-        widget.otherUserId
-      ], // Ensure participants exist
-      'users': FieldValue.arrayUnion(
-          [currentUser.uid, widget.otherUserId]) // Searchable index
-    });
+      // 2. Update Chat Room (Inbox)
+      final chatRef =
+          FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
 
-    await batch.commit();
+      batch.set(
+          chatRef,
+          {
+            'lastMessage': messageText,
+            'lastMessageTime': FieldValue.serverTimestamp(),
+            'participants': [currentUser.uid, widget.otherUserId],
+            'users':
+                FieldValue.arrayUnion([currentUser.uid, widget.otherUserId])
+          },
+          SetOptions(merge: true));
 
-    // Scroll to bottom
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(0,
-          duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      // 3. Send to Database (Background)
+      await batch.commit();
+
+      // 4. Scroll to bottom
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(0,
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    } catch (e) {
+      // Only show error if it actually fails
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text("Failed to send: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -93,26 +122,37 @@ class _ChatScreenState extends State<ChatScreen> {
           // --- MESSAGES LIST ---
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('chats')
-                  .doc(widget.chatId)
-                  .collection('messages')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
+              stream: _messagesStream, // Use the stable stream variable
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(child: Text("Something went wrong"));
+                }
+
+                // Show loading only on FIRST load, not every message
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
-                      child: Text("Say hi to ${widget.otherUserName}!",
-                          style: TextStyle(color: Colors.grey[400])));
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline,
+                            size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Say hi to ${widget.otherUserName}!",
+                          style: TextStyle(color: Colors.grey[400]),
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
                 return ListView.builder(
                   controller: _scrollController,
-                  reverse: true, // Start from bottom
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
@@ -127,6 +167,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 4),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 10),
+                        constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75),
                         decoration: BoxDecoration(
                           color: isMe ? const Color(0xFF52B788) : Colors.white,
                           borderRadius: BorderRadius.only(

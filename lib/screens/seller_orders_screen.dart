@@ -1,3 +1,4 @@
+import 'package:agribenta/services/notification_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -101,7 +102,7 @@ class _SellerOrderCard extends StatelessWidget {
   final String orderDocId;
   const _SellerOrderCard({required this.data, required this.orderDocId});
 
-  // --- LOGIC TO UPDATE STATUS ---
+  // --- UPDATED LOGIC TO UPDATE STATUS & NOTIFY BUYER ---
   Future<void> _updateStatus(BuildContext context, String newStatus) async {
     try {
       final db = FirebaseFirestore.instance;
@@ -133,17 +134,59 @@ class _SellerOrderCard extends StatelessWidget {
         }
       }
 
+      // 4. COMMIT THE DATABASE CHANGES
       await batch.commit();
+
+      // ---------------------------------------------------------
+      // 5. SEND NOTIFICATION TO BUYER (NEW PART!)
+      // ---------------------------------------------------------
+      final buyerId = data['buyerId'];
+      final items = (data['items'] as List<dynamic>?) ?? [];
+      final firstItemName = items.isNotEmpty ? items.first['name'] : 'Item';
+
+      if (buyerId != null) {
+        String title = '';
+        String body = '';
+
+        if (newStatus == 'confirmed') {
+          title = 'Order Accepted ✅';
+          body =
+              'Your order for $firstItemName has been accepted! Please prepare for payment/pickup.';
+        } else if (newStatus == 'cancelled') {
+          title = 'Order Declined ❌';
+          body = 'The seller declined your order for $firstItemName.';
+        } else if (newStatus == 'completed') {
+          title = 'Order Delivered/Picked Up 📦';
+          body =
+              'The seller has marked your order for $firstItemName as completed.';
+        }
+
+        // Only send if we have a valid status change
+        if (title.isNotEmpty) {
+          await NotificationManager.sendNotification(
+            receiverId: buyerId,
+            title: title,
+            body: body,
+            type: 'order',
+          );
+        }
+      }
+      // ---------------------------------------------------------
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Order marked as ${newStatus.toUpperCase()}")),
+          SnackBar(
+            content: Text("Order marked as ${newStatus.toUpperCase()}"),
+            backgroundColor: const Color(0xFF52B788),
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error updating: $e")),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error updating: $e")),
+        );
+      }
     }
   }
 

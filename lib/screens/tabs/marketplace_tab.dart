@@ -3,6 +3,8 @@ import 'package:agribenta/services/cart_manager.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_categories.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_search.dart';
 import 'package:agribenta/widgets/home_widgets/livestock_filter_wrapper.dart';
+import 'package:agribenta/screens/notification_screen.dart';
+import 'package:agribenta/widgets/notification_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -55,11 +57,19 @@ class _MarketplaceTabState extends State<MarketplaceTab> {
                       fontSize: 24)),
             ),
             actions: [
-              IconButton(
-                onPressed: () {},
+              /*IconButton(
+                onPressed: () {
+                  // Navigate to Notifications Tab
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const NotificationScreen()),
+                  );
+                },
                 icon: const Icon(Icons.notifications_outlined,
                     color: textDark, size: 26),
-              ),
+              ),*/
+              const NotificationBadge(),
               Padding(
                 padding: const EdgeInsets.only(right: 12.0),
                 child: Consumer<CartManager>(

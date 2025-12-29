@@ -15,6 +15,7 @@ class Livestock {
   final List<String> imagePaths; // All image URLs
   final Timestamp postedAt;
   final String status;
+  final int quantity; // <--- 1. ADD THIS
 
   Livestock({
     required this.id,
@@ -31,6 +32,7 @@ class Livestock {
     required this.imagePaths,
     required this.postedAt,
     required this.status,
+    required this.quantity,
   });
 
   // Factory to create model from a Map (used by fromSnapshot)
@@ -61,6 +63,7 @@ class Livestock {
       imagePaths: parseImagePaths(json['imagePaths']),
       postedAt: json['postedAt'] ?? Timestamp.now(),
       status: json['status'] ?? 'active',
+      quantity: (json['quantity'] as num?)?.toInt() ?? 1,
     );
   }
 

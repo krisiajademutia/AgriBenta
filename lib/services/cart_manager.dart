@@ -130,6 +130,8 @@ class CartManager extends ChangeNotifier {
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         final data = doc.data();
+
+        // --- THIS WAS THE SECTION CAUSING THE ERROR ---
         return CartItem(
           id: doc.id,
           livestock: Livestock(
@@ -147,9 +149,11 @@ class CartManager extends ChangeNotifier {
             description: '',
             postedAt: Timestamp.now(),
             status: 'active',
+            quantity: 1, // <--- ADDED THIS (Default stock placeholder)
           ),
           quantity: (data['quantity'] as num?)?.toInt() ?? 1,
         );
+        // ----------------------------------------------
       }).toList();
     });
   }

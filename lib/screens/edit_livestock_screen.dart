@@ -22,6 +22,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
   late TextEditingController _weightController;
   late TextEditingController _locationController;
   late TextEditingController _descController;
+  late TextEditingController _quantityController;
 
   // --- RESTORED: Your Original Icon Registry ---
   final Map<String, IconData> _iconRegistry = {
@@ -54,6 +55,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
     _weightController = TextEditingController(text: item.weight);
     _locationController = TextEditingController(text: item.location);
     _descController = TextEditingController(text: item.description);
+    _quantityController = TextEditingController(text: item.quantity.toString());
 
     // FIX: Delay initialization to avoid "setState during build" error
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -286,6 +288,21 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                               controller: _ageController,
                               onChanged: manager.setAgeMonths,
                               decoration: _inputDeco("Age", "months")))),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildInputCard(
+                      child: TextFormField(
+                        controller: _quantityController,
+                        keyboardType: TextInputType.number,
+                        decoration: _inputDeco("Quantity", "e.g. 5",
+                            icon: Icons.inventory),
+                        onChanged: (val) =>
+                            context.read<LivestockManager>().setQuantity(val),
+                        validator: (val) => val!.isEmpty ? "Required" : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                 ],
               ),
               const SizedBox(height: 12),

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,6 +22,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
+  final TextEditingController _quantityController = TextEditingController();
 
   // --- RESTORED: Your Original Icon Registry ---
   final Map<String, IconData> _iconRegistry = {
@@ -271,6 +271,27 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                             controller: _ageController,
                             onChanged: manager.setAgeMonths,
                             decoration: _inputDeco("Age", "months")))),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _buildInputCard(
+                  child: TextFormField(
+                    controller: _quantityController,
+                    keyboardType: TextInputType.number,
+                    decoration: _inputDeco("Quantity (Head Count)", "e.g. 5",
+                        icon: Icons.inventory_2_outlined),
+                    onChanged: (val) =>
+                        manager.setQuantity(val), // <--- CONNECT TO MANAGER
+                    validator: (value) {
+                      if (value == null || value.isEmpty)
+                        return 'Please enter quantity';
+                      if (int.tryParse(value) == null || int.parse(value) < 1) {
+                        return 'Must be at least 1';
+                      }
+                      return null;
+                    },
+                  ),
+                )),
+                const SizedBox(height: 10),
               ]),
               const SizedBox(height: 12),
               _buildInputCard(

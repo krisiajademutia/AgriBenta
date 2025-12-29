@@ -18,6 +18,7 @@ import '../services/user_role_manager.dart';
 import '../widgets/profile_widgets/profile_header.dart';
 import '../widgets/profile_widgets/profile_stats_row.dart';
 import '../widgets/profile_widgets/profile_listings_tab.dart';
+import 'package:agribenta/screens/saved_items_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -172,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 20.0),
                                 child: _buildActionTile(
-                                  "My Sales (Seller Dashboard)",
+                                  "My Sales",
                                   Icons.storefront_outlined,
                                   () {
                                     Navigator.push(
@@ -219,7 +220,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                                     _buildActionTile("Saved Items",
                                         Icons.favorite_border_outlined, () {
-                                      // TODO: Navigate to Wishlist
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const SavedItemsScreen()), // <--- ADD THIS
+                                      );
                                     }),
                                   ],
                                 ),

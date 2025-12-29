@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:agribenta/services/notification_manager.dart';
 import 'package:intl/intl.dart';
 
 class OrdersTab extends StatelessWidget {
@@ -37,7 +38,7 @@ class OrdersTab extends StatelessWidget {
         body: const TabBarView(
           children: [
             _BuyerOrderList(status: 'pending'),
-            _BuyerOrderList(status: 'confirmed'),
+            _BuyerOrderList(status: 'confirmed'), // confirmed = To Receive
             _BuyerOrderList(status: 'completed'),
           ],
         ),
@@ -60,38 +61,13 @@ class _BuyerOrderList extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('orders')
-          .where('buyerId', isEqualTo: user.uid) // <--- Filter by BUYER
+          .where('buyerId', isEqualTo: user.uid)
           .where('status', isEqualTo: status)
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
-        // 1. Handle Index Error (The Glitch Fix)
         if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline,
-                      color: Colors.orange, size: 40),
-                  const SizedBox(height: 10),
-                  const Text("First time setup required!",
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 5),
-                  SelectableText(
-                    "Error: ${snapshot.error}",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                      "Check your debug console for the blue link to create the index.",
-                      textAlign: TextAlign.center)
-                ],
-              ),
-            ),
-          );
+          return Center(child: Text("Error: ${snapshot.error}"));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -120,7 +96,12 @@ class _BuyerOrderList extends StatelessWidget {
           itemBuilder: (context, index) {
             final doc = snapshot.data!.docs[index];
             final data = doc.data() as Map<String, dynamic>;
-            return _BuyerOrderCard(data: data);
+
+            // WE PASS THE DOC ID HERE so we can update it later
+            return _BuyerOrderCard(
+              data: data,
+              orderDocId: doc.id,
+            );
           },
         );
       },
@@ -130,7 +111,81 @@ class _BuyerOrderList extends StatelessWidget {
 
 class _BuyerOrderCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const _BuyerOrderCard({required this.data});
+  final String orderDocId; // <--- ADDED THIS
+
+  const _BuyerOrderCard({
+    required this.data,
+    required this.orderDocId,
+  });
+
+  // --- FUNCTION TO MARK ORDER AS RECEIVED ---
+// --- FUNCTION TO MARK ORDER AS RECEIVED (UPDATED) ---
+  Future<void> _markAsReceived(BuildContext context) async {
+    // 1. Ask for confirmation
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Receipt"),
+        content: const Text(
+            "Have you received this item? This will complete the transaction and release payment to the seller."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF52B788),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Yes, Received"),
+          ),
+        ],
+      ),
+    );
+
+    // 2. Update Firestore & Notify Seller
+    if (confirm == true) {
+      try {
+        // A. Update the Order Status
+        await FirebaseFirestore.instance
+            .collection('orders')
+            .doc(orderDocId)
+            .update({
+          'status': 'completed',
+          'completedAt': FieldValue.serverTimestamp(),
+        });
+
+        // B. SEND NOTIFICATION TO SELLER (New!)
+        final sellerId = data['sellerId'];
+        if (sellerId != null) {
+          await NotificationManager.sendNotification(
+            receiverId: sellerId,
+            title: "Order Completed! 🎉",
+            body:
+                "Buyer has received Order #${orderDocId.substring(0, 6)}. Transaction is now complete.",
+            type: "order",
+          );
+        }
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Transaction Completed! 🎉"),
+              backgroundColor: Color(0xFF52B788),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +195,7 @@ class _BuyerOrderCard extends StatelessWidget {
     final shippingFee = (data['shippingFee'] as num?)?.toDouble() ?? 0.0;
     final isPickup = data['isPickup'] ?? false;
     final date = (data['createdAt'] as Timestamp?)?.toDate();
+    final status = data['status'] ?? 'pending'; // Get the status
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -176,7 +232,6 @@ class _BuyerOrderCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                // Pickup Badge
                 if (isPickup)
                   Container(
                     padding:
@@ -244,7 +299,7 @@ class _BuyerOrderCard extends StatelessWidget {
               ),
             ),
 
-          // Footer: Shipping & Payment
+          // Footer: Shipping, Payment, AND ACTION BUTTON
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -252,19 +307,42 @@ class _BuyerOrderCard extends StatelessWidget {
               borderRadius:
                   const BorderRadius.vertical(bottom: Radius.circular(12)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
               children: [
-                Text(
-                    isPickup
-                        ? "Shipping: FREE (Pickup)"
-                        : "Shipping: ₱${shippingFee.toStringAsFixed(0)}",
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-                Text("Pay via ${data['paymentMethod'] ?? 'COD'}",
-                    style: TextStyle(
-                        color: Colors.grey[800],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                        isPickup
+                            ? "Shipping: FREE (Pickup)"
+                            : "Shipping: ₱${shippingFee.toStringAsFixed(0)}",
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    Text("Pay via ${data['paymentMethod'] ?? 'COD'}",
+                        style: TextStyle(
+                            color: Colors.grey[800],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+
+                // --- THE NEW BUTTON ---
+                if (status == 'confirmed') ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _markAsReceived(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF52B788),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text("Order Received"),
+                    ),
+                  ),
+                ]
               ],
             ),
           ),

@@ -26,6 +26,7 @@ class LivestockManager extends ChangeNotifier {
 
   // NEW: Description State
   String? _description;
+  int _quantity = 1;
 
   // Image and Loading State
   //List<File> _tempImageFiles = [];
@@ -60,6 +61,7 @@ class LivestockManager extends ChangeNotifier {
   List<String> existingUrls = [];
   bool isLoading = false;
   final ImagePicker _picker = ImagePicker();
+  int get quantity => _quantity;
 
   //String category = '';
 
@@ -109,6 +111,15 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setQuantity(String val) {
+    if (val.isEmpty) {
+      _quantity = 1;
+    } else {
+      _quantity = int.tryParse(val) ?? 1;
+    }
+    notifyListeners();
+  }
+
   /*void addImageFile(File file) {
     _tempImageFiles.add(file);
     notifyListeners();
@@ -127,6 +138,7 @@ class LivestockManager extends ChangeNotifier {
     _location = livestock.location;
     _weight = livestock.weight;
     _description = livestock.description;
+    _quantity = livestock.quantity;
 
     existingUrls = List.from(livestock.imagePaths);
     newImages.clear();
@@ -160,6 +172,7 @@ class LivestockManager extends ChangeNotifier {
     _ageMonths = null;
     _weight = null;
     _description = null;
+    _quantity = 1;
     newImages.clear();
     existingUrls.clear();
   }
@@ -309,6 +322,7 @@ class LivestockManager extends ChangeNotifier {
         'age': ageString,
         'weight': _weight,
         'description': _description!.trim(),
+        'quantity': _quantity,
         'colorValue': 0xFF2E8B57,
         'imagePath': mainImagePath,
         'imagePaths': imageUrls,
@@ -399,6 +413,7 @@ class LivestockManager extends ChangeNotifier {
         'category': _category,
         'price': _price,
         'shippingFee': _shippingFee,
+        'quantity': _quantity,
         'age': ageString,
         'weight': _weight,
         'location': _location,

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/cart_manager.dart';
+// IMPORT THIS (Adjust path if needed)
+import 'notification_manager.dart';
 
 class OrderManager {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -19,7 +21,7 @@ class OrderManager {
     required double totalAmount,
     required String deliveryAddress,
     required String paymentMethod,
-    required bool isPickup, // <--- ADDED THIS PARAMETER
+    required bool isPickup,
     required BuildContext context,
   }) async {
     if (currentUser == null) return false;
@@ -39,6 +41,9 @@ class OrderManager {
         itemsBySeller[sellerId]!.add(item);
       }
 
+      // --- LIST TO STORE NOTIFICATIONS TO SEND LATER ---
+      List<Map<String, String>> pendingNotifications = [];
+
       // 2. Create Order per Seller
       for (var sellerId in itemsBySeller.keys) {
         final sellerItems = itemsBySeller[sellerId]!;
@@ -53,9 +58,8 @@ class OrderManager {
 
           // --- SHIPPING LOGIC ---
           if (isPickup) {
-            orderShippingFee += 0.0; // Free if pickup
+            orderShippingFee += 0.0;
           } else {
-            // Distance Logic
             double baseFee = item.livestock.shippingFee;
             String sellerLoc = item.livestock.location.toLowerCase().trim();
             bool isSameCity = cleanAddress.contains(sellerLoc) ||
@@ -64,7 +68,7 @@ class OrderManager {
             if (isSameCity) {
               orderShippingFee += baseFee;
             } else {
-              orderShippingFee += (baseFee + 500.0); // Distance Surcharge
+              orderShippingFee += (baseFee + 500.0);
             }
           }
 
@@ -92,10 +96,9 @@ class OrderManager {
           'shippingFee': orderShippingFee,
           'totalAmount': finalOrderTotal,
           'status': 'pending',
-          'deliveryAddress':
-              isPickup ? "CUSTOMER PICKUP" : deliveryAddress, // Mark as pickup
+          'deliveryAddress': isPickup ? "CUSTOMER PICKUP" : deliveryAddress,
           'paymentMethod': paymentMethod,
-          'isPickup': isPickup, // Save the flag
+          'isPickup': isPickup,
           'chatRoomId': chatRoomId,
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -122,9 +125,37 @@ class OrderManager {
               'hasUnread': true,
             },
             SetOptions(merge: true));
+
+        // --- PREPARE NOTIFICATION DATA ---
+        // We prepare it here but send it AFTER the batch commits successfully
+        final firstItemName = sellerItems.first.livestock.name;
+        final itemCount = sellerItems.length;
+        final itemLabel = itemCount > 1
+            ? "$firstItemName + ${itemCount - 1} others"
+            : firstItemName;
+
+        pendingNotifications.add({
+          'receiverId': sellerId,
+          'title': 'New Order Received! 📦',
+          'body':
+              'You have a new order for $itemLabel. Total: ₱${finalOrderTotal.toStringAsFixed(0)}',
+          'type': 'order'
+        });
       }
 
+      // 3. COMMIT THE DATABASE CHANGES
       await batch.commit();
+
+      // 4. SEND NOTIFICATIONS (Now that we know the order is saved)
+      for (var note in pendingNotifications) {
+        await NotificationManager.sendNotification(
+          receiverId: note['receiverId']!,
+          title: note['title']!,
+          body: note['body']!,
+          type: note['type']!,
+        );
+      }
+
       return true;
     } catch (e) {
       debugPrint("Order Error: $e");
