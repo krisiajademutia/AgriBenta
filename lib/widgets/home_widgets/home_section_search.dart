@@ -25,7 +25,8 @@ class SectionSearch extends StatelessWidget {
       child: TextField(
         onChanged: onSearchChanged,
         decoration: InputDecoration(
-          hintText: "Search livestock...",
+          // UPDATED HINT TEXT
+          hintText: "Search",
           hintStyle: TextStyle(color: Colors.grey.shade400),
           prefixIcon:
               const Icon(Icons.search_rounded, color: Color(0xFF52B788)),

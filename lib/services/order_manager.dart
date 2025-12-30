@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/cart_manager.dart';
-// IMPORT THIS (Adjust path if needed)
 import 'notification_manager.dart';
 
 class OrderManager {
@@ -10,11 +9,6 @@ class OrderManager {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   User? get currentUser => _auth.currentUser;
-
-  String _generateChatRoomId(String uid1, String uid2) {
-    final List<String> ids = [uid1, uid2]..sort();
-    return '${ids[0]}_${ids[1]}';
-  }
 
   Future<bool> placeOrder({
     required List<CartItem> items,
@@ -31,7 +25,11 @@ class OrderManager {
       final buyerId = currentUser!.uid;
       final String cleanAddress = deliveryAddress.toLowerCase().trim();
 
-      // 1. Group items by Seller
+      // 1. FETCH BUYER NAME
+      final userDoc = await _firestore.collection('users').doc(buyerId).get();
+      final String buyerName = userDoc.data()?['name'] ?? 'AgriBenta User';
+
+      // 2. Group items by Seller
       Map<String, List<CartItem>> itemsBySeller = {};
       for (var item in items) {
         final sellerId = item.livestock.sellerId;
@@ -41,93 +39,62 @@ class OrderManager {
         itemsBySeller[sellerId]!.add(item);
       }
 
-      // --- LIST TO STORE NOTIFICATIONS TO SEND LATER ---
-      List<Map<String, String>> pendingNotifications = [];
+      List<Map<String, dynamic>> pendingNotifications = [];
 
-      // 2. Create Order per Seller
-      for (var sellerId in itemsBySeller.keys) {
-        final sellerItems = itemsBySeller[sellerId]!;
+      // 3. Create Order per Seller
+      for (var entry in itemsBySeller.entries) {
+        final sellerId = entry.key;
+        final sellerItems = entry.value;
 
-        double orderSubtotal = 0.0;
-        double orderShippingFee = 0.0;
-        List<Map<String, dynamic>> orderItemsData = [];
-
-        // Calculate Totals
+        double sellerTotal = 0;
         for (var item in sellerItems) {
-          orderSubtotal += item.totalPrice;
-
-          // --- SHIPPING LOGIC ---
-          if (isPickup) {
-            orderShippingFee += 0.0;
-          } else {
-            double baseFee = item.livestock.shippingFee;
-            String sellerLoc = item.livestock.location.toLowerCase().trim();
-            bool isSameCity = cleanAddress.contains(sellerLoc) ||
-                sellerLoc.contains(cleanAddress);
-
-            if (isSameCity) {
-              orderShippingFee += baseFee;
-            } else {
-              orderShippingFee += (baseFee + 500.0);
-            }
-          }
-
-          orderItemsData.add({
-            'livestockId': item.livestock.id,
-            'name': item.livestock.name,
-            'quantity': item.quantity,
-            'price': item.livestock.price,
-            'shippingFee': item.livestock.shippingFee,
-            'imagePath': item.livestock.imagePath,
-          });
+          sellerTotal += item.livestock.price * item.quantity;
         }
-
-        double finalOrderTotal = orderSubtotal + orderShippingFee;
 
         final orderRef = _firestore.collection('orders').doc();
-        final chatRoomId = _generateChatRoomId(buyerId, sellerId);
+        final orderId = orderRef.id;
 
-        batch.set(orderRef, {
-          'orderId': orderRef.id,
+        final orderData = {
+          'orderId': orderId,
           'buyerId': buyerId,
+          'buyerName': buyerName,
           'sellerId': sellerId,
-          'items': orderItemsData,
-          'itemSubtotal': orderSubtotal,
-          'shippingFee': orderShippingFee,
-          'totalAmount': finalOrderTotal,
-          'status': 'pending',
-          'deliveryAddress': isPickup ? "CUSTOMER PICKUP" : deliveryAddress,
+          'items': sellerItems.map((item) {
+            // --- FIX IS HERE: Using the correct property names ---
+            String? imageUrl = item.livestock.imagePath;
+
+            // Fallback: If imagePath is empty, try the first item in imagePaths list
+            if ((imageUrl == null || imageUrl.isEmpty) &&
+                item.livestock.imagePaths.isNotEmpty) {
+              imageUrl = item.livestock.imagePaths.first;
+            }
+            // ----------------------------------------------------
+
+            return {
+              'livestockId': item.livestock.id,
+              'name': item.livestock.name,
+              'price': item.livestock.price,
+              'quantity': item.quantity,
+              'image': imageUrl,
+            };
+          }).toList(),
+          'totalAmount': sellerTotal,
+          'deliveryAddress': deliveryAddress,
           'paymentMethod': paymentMethod,
           'isPickup': isPickup,
-          'chatRoomId': chatRoomId,
+          'status': 'pending',
           'createdAt': FieldValue.serverTimestamp(),
-        });
+          'searchKeywords': [
+            ...cleanAddress.split(' '),
+            'pending',
+            buyerId,
+            sellerId
+          ],
+        };
 
-        // Update Livestock Status
-        for (var item in sellerItems) {
-          final livestockRef =
-              _firestore.collection('livestock').doc(item.livestock.id);
-          batch.update(livestockRef, {
-            'status': 'pending',
-            'pendingBuyerId': buyerId,
-          });
-        }
+        batch.set(orderRef, orderData);
 
-        // Create Chat Room
-        final chatRef = _firestore.collection('chats').doc(chatRoomId);
-        batch.set(
-            chatRef,
-            {
-              'participants': [buyerId, sellerId],
-              'lastMessage':
-                  'New Order: ₱${finalOrderTotal.toStringAsFixed(0)}',
-              'lastMessageTime': FieldValue.serverTimestamp(),
-              'hasUnread': true,
-            },
-            SetOptions(merge: true));
-
-        // --- PREPARE NOTIFICATION DATA ---
-        // We prepare it here but send it AFTER the batch commits successfully
+        // Notification Setup
         final firstItemName = sellerItems.first.livestock.name;
         final itemCount = sellerItems.length;
         final itemLabel = itemCount > 1
@@ -137,22 +104,21 @@ class OrderManager {
         pendingNotifications.add({
           'receiverId': sellerId,
           'title': 'New Order Received! 📦',
-          'body':
-              'You have a new order for $itemLabel. Total: ₱${finalOrderTotal.toStringAsFixed(0)}',
-          'type': 'order'
+          'body': 'You have a new order for $itemLabel from $buyerName.',
+          'type': 'order',
+          'referenceId': orderId,
         });
       }
 
-      // 3. COMMIT THE DATABASE CHANGES
       await batch.commit();
 
-      // 4. SEND NOTIFICATIONS (Now that we know the order is saved)
       for (var note in pendingNotifications) {
         await NotificationManager.sendNotification(
           receiverId: note['receiverId']!,
           title: note['title']!,
           body: note['body']!,
           type: note['type']!,
+          referenceId: note['referenceId'],
         );
       }
 

@@ -1,11 +1,71 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/cart_manager.dart';
 import '../services/order_manager.dart';
+import 'package:flutter/services.dart';
 
+// -----------------------------------------------------------------------------
+// SERVICE: Handles Loading the Philippines Location JSON
+// -----------------------------------------------------------------------------
+class LocationService {
+  static Map<String, dynamic>? _fullData;
+
+  static Future<void> loadData() async {
+    if (_fullData != null) return;
+    try {
+      final String response =
+          await rootBundle.loadString('assets/ph_locations.json');
+      _fullData = json.decode(response);
+    } catch (e) {
+      debugPrint("Error loading location data: $e");
+    }
+  }
+
+  static List<String> getRegions() {
+    if (_fullData == null) return [];
+    return _fullData!.keys.toList();
+  }
+
+  static List<String> getProvinces(String region) {
+    if (_fullData == null || !_fullData!.containsKey(region)) return [];
+    try {
+      Map<String, dynamic> provinceList = _fullData![region]['province_list'];
+      return provinceList.keys.toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static List<String> getCities(String region, String province) {
+    if (_fullData == null) return [];
+    try {
+      Map<String, dynamic> cityList =
+          _fullData![region]['province_list'][province]['municipality_list'];
+      return cityList.keys.toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  static List<String> getBarangays(
+      String region, String province, String city) {
+    if (_fullData == null) return [];
+    try {
+      List<dynamic> bList = _fullData![region]['province_list'][province]
+          ['municipality_list'][city]['barangay_list'];
+      return bList.map((e) => e.toString()).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// CHECKOUT SCREEN WIDGET
+// -----------------------------------------------------------------------------
 class CheckoutScreen extends StatefulWidget {
   final List<CartItem> items;
-
   const CheckoutScreen(
       {super.key, required this.items, required double totalAmount});
 
@@ -14,238 +74,238 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _addressController = TextEditingController();
+  // --- STATE ---
+  String? _selectedRegion;
+  String? _selectedProvince;
+  String? _selectedCity;
+  String? _selectedBarangay;
+  bool _isLocationLoaded = false;
 
-  String _paymentMethod = 'COD'; // Default
+  final TextEditingController _streetController = TextEditingController();
+  final TextEditingController _gcashRefController = TextEditingController();
+
+  String _paymentMethod = 'COD';
   bool _isPickUp = false;
   double _shippingFee = 0.0;
   String _shippingLabel = "Enter address to calculate";
   bool _isLoading = false;
 
+  // --- BRAND COLORS ---
+  final Color _primaryColor = const Color(0xFF1B4332); // Dark Green
+  final Color _accentColor = const Color(0xFF52B788); // Light Green
+  final Color _bgColor = const Color(0xFFF4F6F8); // Soft Grey Background
+
   @override
   void initState() {
     super.initState();
-    // Recalculate shipping whenever address changes
-    _addressController.addListener(_calculateShipping);
+    _initLocationData();
+  }
+
+  Future<void> _initLocationData() async {
+    await LocationService.loadData();
+    if (mounted) setState(() => _isLocationLoaded = true);
   }
 
   @override
   void dispose() {
-    _addressController.dispose();
+    _streetController.dispose();
+    _gcashRefController.dispose();
     super.dispose();
   }
 
+  // --- LOGIC ---
   void _calculateShipping() {
-    // 1. If Pickup is ON, Fee is 0
     if (_isPickUp) {
-      if (mounted) {
-        setState(() {
-          _shippingFee = 0.0;
-          _shippingLabel = "Customer Pickup (Free)";
-        });
-      }
+      setState(() {
+        _shippingFee = 0.0;
+        _shippingLabel = "Customer Pickup (Free)";
+      });
       return;
     }
-
-    String buyerAddress = _addressController.text.toLowerCase().trim();
-    if (buyerAddress.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _shippingFee = 0.0;
-          _shippingLabel = "Enter address";
-        });
-      }
+    if (_selectedCity == null) {
+      setState(() {
+        _shippingFee = 0.0;
+        _shippingLabel = "Select City to calculate";
+      });
       return;
     }
 
     double totalShipping = 0.0;
     bool isLongDistance = false;
 
-    // 2. Loop through items to calculate fee
     for (var item in widget.items) {
       double baseFee = item.livestock.shippingFee;
-      String sellerLoc = item.livestock.location.toLowerCase().trim();
-
-      // LOGIC: Check if cities match
-      bool isSameCity =
-          buyerAddress.contains(sellerLoc) || sellerLoc.contains(buyerAddress);
+      String sellerCity = item.livestock.location.trim();
+      bool isSameCity = _selectedCity == sellerCity;
 
       if (isSameCity) {
-        // SAME CITY
         totalShipping += baseFee;
       } else {
-        // DIFFERENT CITY (Add Surcharge)
         totalShipping += (baseFee + 500.0);
         isLongDistance = true;
       }
     }
 
-    // 3. Update UI
-    String label = isLongDistance
-        ? "Includes Distance Surcharge (+₱500)"
-        : "Standard Delivery";
-
-    if (mounted) {
-      setState(() {
-        _shippingFee = totalShipping;
-        _shippingLabel = label;
-      });
-    }
+    setState(() {
+      _shippingFee = totalShipping;
+      _shippingLabel = isLongDistance
+          ? "Provincial Delivery (+₱500)"
+          : "Standard Local Delivery";
+    });
   }
 
-  double get subtotal {
-    return widget.items.fold(0, (sum, item) => sum + item.totalPrice);
-  }
-
+  double get subtotal =>
+      widget.items.fold(0, (sum, item) => sum + item.totalPrice);
   double get total => subtotal + _shippingFee;
 
   Future<void> _placeOrder() async {
-    if (!_isPickUp && _addressController.text.trim().isEmpty) {
+    if (!_isPickUp &&
+        (_selectedBarangay == null || _streetController.text.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a delivery address")),
-      );
+          const SnackBar(content: Text("Please complete your address")));
+      return;
+    }
+    if (_paymentMethod == 'GCash' && _gcashRefController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please enter GCash Reference No.")));
       return;
     }
 
     setState(() => _isLoading = true);
 
+    String finalAddress = _isPickUp
+        ? "Customer Pickup"
+        : "${_streetController.text}, Brgy. $_selectedBarangay, $_selectedCity, $_selectedProvince, $_selectedRegion";
+
+    String paymentDetails = _paymentMethod == 'GCash'
+        ? "GCash (Ref: ${_gcashRefController.text.trim()})"
+        : "COD";
+
     final success = await OrderManager().placeOrder(
       items: widget.items,
       totalAmount: total,
-      deliveryAddress: _addressController.text.trim(),
-      paymentMethod: _paymentMethod,
-      isPickup: _isPickUp, // Pass the toggle state
+      deliveryAddress: finalAddress,
+      paymentMethod: paymentDetails,
+      isPickup: _isPickUp,
       context: context,
     );
 
     setState(() => _isLoading = false);
 
     if (success && mounted) {
-      // Clear Cart
-      context.read<CartManager>().clearCart();
-
-      // Show Success & Go Home
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Icon(Icons.check_circle, color: Colors.green, size: 60),
-          content: const Text(
-            "Order Placed Successfully!\nWait for seller confirmation.",
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop(); // Close Dialog
-                Navigator.of(context)
-                    .popUntil((route) => route.isFirst); // Go to Home
-              },
-              child: const Text("OK"),
-            )
-          ],
-        ),
-      );
+      final cartManager = context.read<CartManager>();
+      for (var item in widget.items) await cartManager.removeFromCart(item.id);
+      _showSuccessDialog();
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    const Color brandGreen = Color(0xFF52B788);
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9F6F0),
-      appBar: AppBar(
-        title: const Text("Checkout",
-            style: TextStyle(
-                color: Color(0xFF1B4332), fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1B4332)),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -4))
-          ],
-        ),
-        child: Column(
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Total Payment:",
-                    style: TextStyle(fontSize: 16, color: Colors.grey)),
-                Text("₱${total.toStringAsFixed(0)}",
-                    style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: brandGreen)),
-              ],
+            Icon(Icons.check_circle_rounded, color: _accentColor, size: 80),
+            const SizedBox(height: 20),
+            const Text("Order Placed!",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(
+              _paymentMethod == 'GCash'
+                  ? "We are verifying your payment. You will be notified shortly."
+                  : "Please prepare the exact amount upon delivery.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey[600]),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              height: 50,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _placeOrder,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: brandGreen,
+                  backgroundColor: _primaryColor,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(10)),
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Place Order",
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                },
+                child: const Text("Back to Home",
+                    style: TextStyle(color: Colors.white)),
               ),
-            ),
+            )
           ],
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. DELIVERY ADDRESS
-            const Text("Delivery Address",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _addressController,
-              enabled: !_isPickUp, // Disable if picking up
-              decoration: InputDecoration(
-                hintText: _isPickUp
-                    ? "Not required for pickup"
-                    : "Enter complete address (City, Barangay)",
-                filled: true,
-                fillColor: _isPickUp ? Colors.grey[200] : Colors.white,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none),
-                prefixIcon: const Icon(Icons.location_on, color: Colors.grey),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // UI BUILD
+  // ---------------------------------------------------------------------------
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bgColor,
+      appBar: AppBar(
+        title: Text("Checkout",
+            style:
+                TextStyle(color: _primaryColor, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: IconThemeData(color: _primaryColor),
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+      ),
+      bottomNavigationBar: _buildBottomSummary(),
+      body: !_isLocationLoaded
+          ? Center(child: CircularProgressIndicator(color: _accentColor))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildAddressSection(),
+                  const SizedBox(height: 16),
+                  _buildOrderSummarySection(),
+                  const SizedBox(height: 16),
+                  _buildPaymentSection(),
+                  const SizedBox(height: 30), // Extra space for bottom bar
+                ],
               ),
             ),
+    );
+  }
 
-            // 2. PICKUP TOGGLE
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              activeColor: brandGreen,
-              title: const Text("I will pick up the item",
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text("Meet seller at their farm (Free Shipping)"),
+  // --- SECTION: ADDRESS ---
+  Widget _buildAddressSection() {
+    return _buildCardContainer(
+      title: "Shipping Details",
+      icon: Icons.location_on_outlined,
+      child: Column(
+        children: [
+          // Pickup Toggle
+          Container(
+            decoration: BoxDecoration(
+              color: _isPickUp
+                  ? _accentColor.withOpacity(0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: _isPickUp ? _accentColor : Colors.grey.shade300),
+            ),
+            child: SwitchListTile(
+              activeColor: _primaryColor,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              title: Text("I will pick up the item",
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor)),
+              subtitle: const Text("Free • Meet up with seller",
+                  style: TextStyle(fontSize: 12)),
               value: _isPickUp,
               onChanged: (val) {
                 setState(() {
@@ -254,109 +314,372 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 });
               },
             ),
-            const Divider(),
+          ),
 
-            // 3. ORDER SUMMARY
-            const SizedBox(height: 10),
-            const Text("Order Summary",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.items.length,
-              itemBuilder: (context, index) {
-                final item = widget.items[index];
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      image: DecorationImage(
-                        image: NetworkImage(item.livestock.imagePath),
-                        fit: BoxFit.cover,
+          if (!_isPickUp) ...[
+            const SizedBox(height: 16),
+            _buildModernDropdown(
+                "Region", _selectedRegion, LocationService.getRegions(), (val) {
+              setState(() {
+                _selectedRegion = val;
+                _selectedProvince = null;
+                _selectedCity = null;
+                _selectedBarangay = null;
+              });
+            }),
+            const SizedBox(height: 12),
+            _buildModernDropdown(
+                "Province",
+                _selectedProvince,
+                _selectedRegion == null
+                    ? []
+                    : LocationService.getProvinces(_selectedRegion!), (val) {
+              setState(() {
+                _selectedProvince = val;
+                _selectedCity = null;
+                _selectedBarangay = null;
+              });
+            }),
+            const SizedBox(height: 12),
+            _buildModernDropdown(
+                "City / Municipality",
+                _selectedCity,
+                (_selectedRegion == null || _selectedProvince == null)
+                    ? []
+                    : LocationService.getCities(
+                        _selectedRegion!, _selectedProvince!), (val) {
+              setState(() {
+                _selectedCity = val;
+                _selectedBarangay = null;
+                _calculateShipping();
+              });
+            }),
+            const SizedBox(height: 12),
+            _buildModernDropdown(
+                "Barangay",
+                _selectedBarangay,
+                _selectedCity == null
+                    ? []
+                    : LocationService.getBarangays(
+                        _selectedRegion!, _selectedProvince!, _selectedCity!),
+                (val) => setState(() => _selectedBarangay = val)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _streetController,
+              decoration: _inputDecoration("Street Name, House No., Landmark"),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // --- SECTION: ORDER SUMMARY ---
+  Widget _buildOrderSummarySection() {
+    return _buildCardContainer(
+      title: "Your Items",
+      icon: Icons.shopping_bag_outlined,
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: widget.items.length,
+        separatorBuilder: (ctx, i) => Divider(color: Colors.grey[200]),
+        itemBuilder: (context, index) {
+          final item = widget.items[index];
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.grey[200],
+                    image: DecorationImage(
+                      image: NetworkImage(item.livestock.imagePath),
+                      fit: BoxFit.cover,
+                      onError: (e, s) {}, // Handle error gracefully
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.livestock.name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15)),
+                      const SizedBox(height: 4),
+                      Text("Qty: ${item.quantity}",
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 13)),
+                    ],
+                  ),
+                ),
+                Text("₱${item.totalPrice.toStringAsFixed(0)}",
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 15)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // --- SECTION: PAYMENT ---
+  Widget _buildPaymentSection() {
+    return _buildCardContainer(
+      title: "Payment Method",
+      icon: Icons.payment_outlined,
+      child: Column(
+        children: [
+          _buildPaymentOption("Cash on Delivery",
+              "Pay when you receive the item", "COD", Icons.money),
+          const SizedBox(height: 10),
+          _buildPaymentOption("GCash (E-Wallet)", "Scan QR or Send Money",
+              "GCash", Icons.phone_android),
+          if (_paymentMethod == "GCash")
+            Container(
+              margin: const EdgeInsets.only(top: 15),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline,
+                          color: Colors.blue, size: 20),
+                      const SizedBox(width: 8),
+                      Text("Merchant: 0917 123 4567",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[800])),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _gcashRefController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: "Enter GCash Reference No.",
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue.shade100),
                       ),
                     ),
                   ),
-                  title: Text(item.livestock.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                      "${item.quantity} x ₱${item.livestock.price.toStringAsFixed(0)}"),
-                  trailing: Text("₱${item.totalPrice.toStringAsFixed(0)}"),
-                );
-              },
+                ],
+              ),
             ),
+        ],
+      ),
+    );
+  }
 
-            const Divider(),
-
-            // 4. PAYMENT METHOD
-            const Text("Payment Method",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile(
-                    title: const Text("Cash"),
-                    value: "Cash",
-                    groupValue: _paymentMethod,
-                    activeColor: brandGreen,
-                    onChanged: (val) =>
-                        setState(() => _paymentMethod = val.toString()),
-                  ),
-                ),
-                Expanded(
-                  child: RadioListTile(
-                    title: const Text("GCash"),
-                    value: "GCash",
-                    groupValue: _paymentMethod,
-                    activeColor: brandGreen,
-                    onChanged: (val) =>
-                        setState(() => _paymentMethod = val.toString()),
-                  ),
-                ),
-              ],
+  // --- WIDGET HELPER: PAYMENT OPTION CARD ---
+  Widget _buildPaymentOption(
+      String title, String subtitle, String value, IconData icon) {
+    final bool isSelected = _paymentMethod == value;
+    return GestureDetector(
+      onTap: () => setState(() => _paymentMethod = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? _accentColor.withOpacity(0.08) : Colors.white,
+          border: Border.all(
+              color: isSelected ? _accentColor : Colors.grey.shade300,
+              width: isSelected ? 2 : 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                color: isSelected ? _primaryColor : Colors.grey, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? _primaryColor : Colors.black87)),
+                  Text(subtitle,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
+              ),
             ),
-
-            const Divider(),
-
-            // 5. BILL BREAKDOWN
-            _buildSummaryRow("Subtotal", "₱${subtotal.toStringAsFixed(0)}"),
-            const SizedBox(height: 8),
-            _buildSummaryRow(
-                "Shipping Fee", "₱${_shippingFee.toStringAsFixed(0)}",
-                isHighlighted: true),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: Text(_shippingLabel,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: _shippingFee > 0 ? Colors.orange[800] : brandGreen,
-                      fontStyle: FontStyle.italic)),
-            ),
-            const Divider(),
+            if (isSelected) Icon(Icons.check_circle, color: _accentColor),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value,
-      {bool isHighlighted = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label,
-            style: TextStyle(
-                fontSize: 14,
-                color: isHighlighted ? Colors.black : Colors.grey[700])),
-        Text(value,
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight:
-                    isHighlighted ? FontWeight.bold : FontWeight.normal)),
-      ],
+  // --- WIDGET HELPER: CARD CONTAINER ---
+  Widget _buildCardContainer(
+      {required String title, required IconData icon, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: _primaryColor),
+              const SizedBox(width: 8),
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const Divider(height: 24),
+          child,
+        ],
+      ),
+    );
+  }
+
+  // --- WIDGET HELPER: STYLED DROPDOWN ---
+  Widget _buildModernDropdown(String hint, String? value, List<String> items,
+      Function(String?) onChanged) {
+    return DropdownButtonFormField<String>(
+      decoration: _inputDecoration(hint),
+      value: value,
+      isExpanded: true,
+      items: items
+          .map((item) => DropdownMenuItem(
+              value: item, child: Text(item, overflow: TextOverflow.ellipsis)))
+          .toList(),
+      onChanged: onChanged,
+    );
+  }
+
+  // --- WIDGET HELPER: INPUT DECORATION ---
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+      filled: true,
+      fillColor: Colors.grey[100],
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: _accentColor, width: 1.5),
+      ),
+    );
+  }
+
+  // --- BOTTOM BAR ---
+  Widget _buildBottomSummary() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 15,
+              offset: const Offset(0, -5))
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Subtotal", style: TextStyle(color: Colors.grey)),
+              Text("₱${subtotal.toStringAsFixed(0)}",
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Shipping Fee", style: TextStyle(color: Colors.grey)),
+              Text("₱${_shippingFee.toStringAsFixed(0)}",
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Total Payment",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text("₱${total.toStringAsFixed(0)}",
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: _primaryColor)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _placeOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryColor,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Text("Place Order Now",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

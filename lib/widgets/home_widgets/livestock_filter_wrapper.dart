@@ -16,11 +16,12 @@ class LivestockFilterWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     Query query = FirebaseFirestore.instance.collection('livestock');
 
+    // 1. FILTER BY CATEGORY (Server Side)
     if (selectedCategoryName != 'All') {
       query = query.where('category', isEqualTo: selectedCategoryName);
     }
 
-    // Order by newest
+    // 2. ORDER BY DATE (Server Side)
     query = query.orderBy('postedAt', descending: true);
 
     return StreamBuilder<QuerySnapshot>(
@@ -44,11 +45,19 @@ class LivestockFilterWrapper extends StatelessWidget {
 
         final allDocs = snapshot.data!.docs;
 
-        //  SEARCH FILTERING (Client Side)
+        // 3. SEARCH FILTERING (Client Side - Name OR Location)
         final filteredDocs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
+
+          // Get the search query in lowercase
+          final query = searchQuery.toLowerCase();
+
+          // Get fields (Handle nulls safely)
           final name = (data['name'] ?? '').toString().toLowerCase();
-          return name.contains(searchQuery.toLowerCase());
+          final location = (data['location'] ?? '').toString().toLowerCase();
+
+          // CHECK: Does name match OR does location match?
+          return name.contains(query) || location.contains(query);
         }).toList();
 
         if (filteredDocs.isEmpty) {

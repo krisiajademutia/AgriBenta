@@ -17,6 +17,7 @@ dependencies:
 
   # === IMAGE PICKER ===
   image_picker: ^1.1.2
+  video_player: ^2.8.6
 
   # === FIREBASE (LATEST STABLE DEC 2025) ===
   firebase_core: ^3.6.0
@@ -52,6 +53,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    - assets/ph_locations.json
 
   fonts:
     - family: Poppins

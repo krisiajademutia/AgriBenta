@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 // --- SCREENS ---
 import 'add_livestock_screen.dart';
 import 'edit_profile_screen.dart';
-import 'seller_orders_screen.dart'; // <--- NEW IMPORT
+import 'seller_orders_screen.dart';
 
 // --- MODELS & SERVICES ---
 import '../models/user_model.dart';
@@ -132,7 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                             // --- SELLER VIEW ---
                             if (roleManager.isSeller) ...[
-                              // Dynamic Stats Row
+                              // Dynamic Stats Row (FIXED LOGIC HERE)
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
                                     .collection('livestock')
@@ -145,15 +145,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                                   if (snapshot.hasData) {
                                     totalListings = snapshot.data!.docs.length;
+
                                     for (var doc in snapshot.data!.docs) {
                                       final data =
                                           doc.data() as Map<String, dynamic>;
-                                      if (data['status']?.toLowerCase() ==
-                                          'sold') {
+
+                                      // 1. Safe Status Check (Handle Capitalization & Nulls)
+                                      final String status =
+                                          (data['status'] ?? '')
+                                              .toString()
+                                              .toLowerCase();
+
+                                      if (status == 'sold') {
                                         totalSales++;
-                                        totalEarnings += (data['price'] as num?)
-                                                ?.toDouble() ??
-                                            0.0;
+
+                                        // 2. Safe Price Parsing (Handle Strings, Numbers, & Currency Symbols)
+                                        final dynamic rawPrice = data['price'];
+                                        double price = 0.0;
+
+                                        if (rawPrice is num) {
+                                          price = rawPrice.toDouble();
+                                        } else if (rawPrice is String) {
+                                          // Removes '₱', commas, or spaces if present to parse correctly
+                                          String cleanPrice =
+                                              rawPrice.replaceAll(
+                                                  RegExp(r'[^0-9.]'), '');
+                                          price = double.tryParse(cleanPrice) ??
+                                              0.0;
+                                        }
+
+                                        totalEarnings += price;
                                       }
                                     }
                                   }
@@ -168,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                               const SizedBox(height: 20),
 
-                              // --- [NEW] MY SALES DASHBOARD BUTTON ---
+                              // My Sales Dashboard Button
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 20.0),
@@ -182,7 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             builder: (_) =>
                                                 const SellerOrdersScreen()));
                                   },
-                                  isHighlight: true, // Special styling
+                                  isHighlight: true,
                                 ),
                               ),
 
@@ -207,8 +228,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                             fontWeight: FontWeight.bold,
                                             color: textDark)),
                                     const SizedBox(height: 15),
-
-                                    // [NEW] Linked to OrderHistoryScreen
                                     _buildActionTile("My Orders",
                                         Icons.receipt_long_outlined, () {
                                       Navigator.push(
@@ -217,14 +236,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                               builder: (_) =>
                                                   const OrdersTab()));
                                     }),
-
                                     _buildActionTile("Saved Items",
                                         Icons.favorite_border_outlined, () {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                             builder: (_) =>
-                                                const SavedItemsScreen()), // <--- ADD THIS
+                                                const SavedItemsScreen()),
                                       );
                                     }),
                                   ],
@@ -332,7 +350,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // UPDATED: Now accepts onTap and has optional highlighting
   Widget _buildActionTile(String title, IconData icon, VoidCallback onTap,
       {bool isHighlight = false}) {
     return Container(

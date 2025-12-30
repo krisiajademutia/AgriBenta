@@ -2,9 +2,15 @@ import 'package:agribenta/services/notification_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class SellerOrdersScreen extends StatelessWidget {
-  const SellerOrdersScreen({super.key});
+  final int initialIndex;
+
+  const SellerOrdersScreen({
+    super.key,
+    this.initialIndex = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -12,6 +18,7 @@ class SellerOrdersScreen extends StatelessWidget {
 
     return DefaultTabController(
       length: 3,
+      initialIndex: initialIndex,
       child: Scaffold(
         backgroundColor: const Color(0xFFF9F6F0),
         appBar: AppBar(
@@ -28,17 +35,17 @@ class SellerOrdersScreen extends StatelessWidget {
             indicatorColor: brandGreen,
             indicatorWeight: 3,
             tabs: [
-              Tab(text: "New Requests"), // Pending
-              Tab(text: "To Deliver"), // Confirmed
-              Tab(text: "Sold"), // Completed
+              Tab(text: "New Requests"),
+              Tab(text: "To Deliver"),
+              Tab(text: "Sold"),
             ],
           ),
         ),
-        body: const TabBarView(
+        body: TabBarView(
           children: [
-            _SellerOrderList(status: 'pending'),
-            _SellerOrderList(status: 'confirmed'),
-            _SellerOrderList(status: 'completed'),
+            _OrdersList(status: 'pending'),
+            _OrdersList(status: 'confirmed'),
+            _OrdersList(status: 'completed'),
           ],
         ),
       ),
@@ -46,37 +53,48 @@ class SellerOrdersScreen extends StatelessWidget {
   }
 }
 
-class _SellerOrderList extends StatelessWidget {
+class _OrdersList extends StatelessWidget {
   final String status;
-  const _SellerOrderList({required this.status});
+
+  const _OrdersList({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const SizedBox();
+    if (user == null) return const Center(child: Text("Please login"));
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('orders')
-          .where('sellerId', isEqualTo: user.uid) // <--- Only show MY sales
+          .where('sellerId', isEqualTo: user.uid)
           .where('status', isEqualTo: status)
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF52B788)));
+          return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        final orders = snapshot.data!.docs;
+
+        if (orders.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
-                const SizedBox(height: 16),
-                Text("No $status orders",
-                    style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                Icon(Icons.inbox_outlined, size: 60, color: Colors.grey[300]),
+                const SizedBox(height: 10),
+                Text(
+                  status == 'pending'
+                      ? "No new orders yet"
+                      : status == 'confirmed'
+                          ? "No orders to deliver"
+                          : "No completed sales yet",
+                  style: TextStyle(color: Colors.grey[500]),
+                ),
               ],
             ),
           );
@@ -84,12 +102,10 @@ class _SellerOrderList extends StatelessWidget {
 
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.docs.length,
+          itemCount: orders.length,
           itemBuilder: (context, index) {
-            final doc = snapshot.data!.docs[index];
-            final data = doc.data() as Map<String, dynamic>;
-            // Pass the Doc ID to update it later
-            return _SellerOrderCard(data: data, orderDocId: doc.id);
+            final order = orders[index];
+            return _OrderCard(order: order, status: status);
           },
         );
       },
@@ -97,86 +113,104 @@ class _SellerOrderList extends StatelessWidget {
   }
 }
 
-class _SellerOrderCard extends StatelessWidget {
-  final Map<String, dynamic> data;
-  final String orderDocId;
-  const _SellerOrderCard({required this.data, required this.orderDocId});
+class _OrderCard extends StatefulWidget {
+  final DocumentSnapshot order;
+  final String status;
 
-  // --- UPDATED LOGIC TO UPDATE STATUS & NOTIFY BUYER ---
+  const _OrderCard({required this.order, required this.status});
+
+  @override
+  State<_OrderCard> createState() => _OrderCardState();
+}
+
+class _OrderCardState extends State<_OrderCard> {
+  // To store fetched buyer name if needed
+  String? _fetchedBuyerName;
+
+  @override
+  void initState() {
+    super.initState();
+    // If buyer name is missing/unknown, try to fetch it
+    final data = widget.order.data() as Map<String, dynamic>;
+    final currentName = data['buyerName'];
+    if (currentName == null ||
+        currentName == 'Unknown Buyer' ||
+        currentName == 'AgriBenta User') {
+      _fetchRealBuyerName(data['buyerId']);
+    }
+  }
+
+  Future<void> _fetchRealBuyerName(String? buyerId) async {
+    if (buyerId == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(buyerId)
+          .get();
+      if (doc.exists && mounted) {
+        setState(() {
+          _fetchedBuyerName = doc.data()?['name'];
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching buyer name: $e");
+    }
+  }
+
   Future<void> _updateStatus(BuildContext context, String newStatus) async {
     try {
-      final db = FirebaseFirestore.instance;
-      final batch = db.batch();
+      final batch = FirebaseFirestore.instance.batch();
+      final orderRef =
+          FirebaseFirestore.instance.collection('orders').doc(widget.order.id);
+      final data = widget.order.data() as Map<String, dynamic>;
 
       // 1. Update Order Status
-      final orderRef = db.collection('orders').doc(orderDocId);
       batch.update(orderRef, {'status': newStatus});
 
-      // 2. If Completed, Mark Items as SOLD
+      // 2. If Sold, update Livestock status
       if (newStatus == 'completed') {
-        final items = (data['items'] as List<dynamic>?) ?? [];
+        final List<dynamic> items = data['items'] ?? [];
         for (var item in items) {
-          final livestockId = item['livestockId'];
-          final livestockRef = db.collection('livestock').doc(livestockId);
-          batch.update(livestockRef, {'status': 'sold', 'isSold': true});
-        }
-      }
-      // 3. If Cancelled, Return items to ACTIVE
-      else if (newStatus == 'cancelled') {
-        final items = (data['items'] as List<dynamic>?) ?? [];
-        for (var item in items) {
-          final livestockId = item['livestockId'];
-          final livestockRef = db.collection('livestock').doc(livestockId);
-          batch.update(livestockRef, {
-            'status': 'active',
-            'pendingBuyerId': FieldValue.delete(),
-          });
+          final String? livestockId = item['livestockId'];
+          if (livestockId != null) {
+            final livestockRef = FirebaseFirestore.instance
+                .collection('livestock')
+                .doc(livestockId);
+            batch.update(livestockRef, {'status': 'sold'});
+          }
         }
       }
 
-      // 4. COMMIT THE DATABASE CHANGES
       await batch.commit();
 
-      // ---------------------------------------------------------
-      // 5. SEND NOTIFICATION TO BUYER (NEW PART!)
-      // ---------------------------------------------------------
-      final buyerId = data['buyerId'];
-      final items = (data['items'] as List<dynamic>?) ?? [];
-      final firstItemName = items.isNotEmpty ? items.first['name'] : 'Item';
+      // 3. Send Notification
+      final String buyerId = data['buyerId'];
+      String title = "Order Update";
+      String body = "Your order status has changed.";
 
-      if (buyerId != null) {
-        String title = '';
-        String body = '';
-
-        if (newStatus == 'confirmed') {
-          title = 'Order Accepted ✅';
-          body =
-              'Your order for $firstItemName has been accepted! Please prepare for payment/pickup.';
-        } else if (newStatus == 'cancelled') {
-          title = 'Order Declined ❌';
-          body = 'The seller declined your order for $firstItemName.';
-        } else if (newStatus == 'completed') {
-          title = 'Order Delivered/Picked Up 📦';
-          body =
-              'The seller has marked your order for $firstItemName as completed.';
-        }
-
-        // Only send if we have a valid status change
-        if (title.isNotEmpty) {
-          await NotificationManager.sendNotification(
-            receiverId: buyerId,
-            title: title,
-            body: body,
-            type: 'order',
-          );
-        }
+      if (newStatus == 'confirmed') {
+        title = "Order Accepted! ✅";
+        body = "The seller has accepted your order. It is being prepared.";
+      } else if (newStatus == 'cancelled') {
+        title = "Order Declined ❌";
+        body = "Unfortunately, the seller cannot fulfill this order.";
+      } else if (newStatus == 'completed') {
+        title = "Order Completed 🎉";
+        body = "Thank you for your purchase! The order is complete.";
       }
-      // ---------------------------------------------------------
+
+      await NotificationManager.sendNotification(
+        receiverId: buyerId,
+        title: title,
+        body: body,
+        type: 'order_update',
+        referenceId: widget.order.id,
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Order marked as ${newStatus.toUpperCase()}"),
+            content: Text("Order marked as $newStatus"),
             backgroundColor: const Color(0xFF52B788),
           ),
         );
@@ -184,7 +218,7 @@ class _SellerOrderCard extends StatelessWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error updating: $e")),
+          SnackBar(content: Text("Error updating order: $e")),
         );
       }
     }
@@ -192,76 +226,133 @@ class _SellerOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = (data['items'] as List<dynamic>?) ?? [];
-    final firstItem = items.isNotEmpty ? items.first : null;
-    final totalAmount = (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
-    final status = data['status'] ?? 'pending';
-    final isPickup = data['isPickup'] ?? false;
+    final data = widget.order.data() as Map<String, dynamic>;
+    final items = data['items'] as List<dynamic>;
+    final total = data['totalAmount'] ?? 0.0;
 
-    return Card(
+    // Priority: Fetched Name -> Stored Name -> Default
+    final buyerName = _fetchedBuyerName ?? data['buyerName'] ?? 'Unknown Buyer';
+
+    final address = data['deliveryAddress'] ?? 'No Address';
+    final timestamp = (data['createdAt'] as Timestamp?)?.toDate();
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          ListTile(
-            title: Text(
-                "Order #${data['orderId']?.toString().substring(0, 6) ?? '...'}",
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(isPickup ? "📢 CUSTOMER PICKUP" : "🚚 FOR DELIVERY",
-                style: TextStyle(
-                    color: isPickup ? Colors.orange : Colors.blue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12)),
-            trailing: Text("₱${totalAmount.toStringAsFixed(0)}",
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Color(0xFF1B4332))),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Order #${widget.order.id.substring(0, 6).toUpperCase()}",
+                    style: TextStyle(
+                        color: Colors.grey[600], fontWeight: FontWeight.bold)),
+                if (timestamp != null)
+                  Text(DateFormat('MMM d, h:mm a').format(timestamp),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+              ],
+            ),
           ),
           const Divider(height: 1),
 
-          // Item Preview
-          if (firstItem != null)
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(firstItem['imagePath'] ?? '',
-                        width: 50, height: 50, fit: BoxFit.cover),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(firstItem['name'],
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w600)),
-                        Text(
-                            "${items.length} items • ${data['paymentMethod']}"),
-                      ],
-                    ),
-                  ),
-                ],
+          // Items
+          ...items.map((item) {
+            // FIX: Check for empty string images
+            final String? imageUrl = item['image'];
+            final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
+            return ListTile(
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: hasImage
+                    ? Image.network(
+                        imageUrl,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                              width: 50,
+                              height: 50,
+                              color: Colors.grey[200],
+                              child: const Icon(Icons.broken_image, size: 20));
+                        },
+                      )
+                    : Container(
+                        width: 50,
+                        height: 50,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.image_not_supported, size: 20)),
               ),
-            ),
+              title: Text(item['name'] ?? 'Item',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text("Qty: ${item['quantity']}"),
+              trailing: Text("₱${item['price']}",
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            );
+          }),
 
-          // ADDRESS
-          if (!isPickup)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.grey[50],
-              child: Text("📍 ${data['deliveryAddress']}",
-                  style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-            ),
+          const Divider(height: 1),
 
-          // ACTION BUTTONS
-          if (status == 'pending')
+          // Buyer Info
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline,
+                        size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Text(buyerName,
+                        style: const TextStyle(fontWeight: FontWeight.w500)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.location_on_outlined,
+                        size: 16, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(address,
+                            style: TextStyle(color: Colors.grey[600]))),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Total Earnings",
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text("₱${total.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF52B788))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Buttons
+          if (widget.status == 'pending')
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: Row(
@@ -288,7 +379,7 @@ class _SellerOrderCard extends StatelessWidget {
               ),
             ),
 
-          if (status == 'confirmed')
+          if (widget.status == 'confirmed')
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: SizedBox(
@@ -297,7 +388,8 @@ class _SellerOrderCard extends StatelessWidget {
                   onPressed: () => _updateStatus(context, 'completed'),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue[700]),
-                  child: const Text("Mark as Delivered / Picked Up"),
+                  child: const Text("Mark as Delivered / Picked Up",
+                      style: TextStyle(color: Colors.white)),
                 ),
               ),
             ),

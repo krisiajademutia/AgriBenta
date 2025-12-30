@@ -1,3 +1,4 @@
+import 'package:agribenta/services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,15 +17,20 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   // Controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _shippingController =
-      TextEditingController(); // Shipping
+  final TextEditingController _shippingController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
+  // _locationController REMOVED -> Replaced by Dropdowns
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
 
-  // --- RESTORED: Your Original Icon Registry ---
+  // --- LOCATION STATE ---
+  bool _isLocationLoaded = false;
+  String? _selectedRegion;
+  String? _selectedProvince;
+  String? _selectedCity;
+  String? _selectedBarangay;
+
   final Map<String, IconData> _iconRegistry = {
     'cow': Icons.catching_pokemon,
     'carabao': Icons.agriculture,
@@ -35,13 +41,23 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     'other': Icons.grid_view,
   };
 
-  IconData _getIconFromKey(String key) {
-    return _iconRegistry[key] ?? Icons.help_outline;
-  }
+  IconData _getIconFromKey(String key) =>
+      _iconRegistry[key] ?? Icons.help_outline;
 
   final Color bgCream = const Color(0xFFF9F6F0);
   final Color textDark = const Color(0xFF1B4332);
   final Color brandGreen = const Color(0xFF52B788);
+
+  @override
+  void initState() {
+    super.initState();
+    _initLocation();
+  }
+
+  Future<void> _initLocation() async {
+    await LocationService.loadData();
+    if (mounted) setState(() => _isLocationLoaded = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +82,13 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
+                  // Validation for Location
+                  if (_selectedCity == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text("Please select a City/Municipality")));
+                    return;
+                  }
+
                   final success = await manager.postListing();
                   if (success && mounted) {
                     Navigator.pop(context);
@@ -147,10 +170,9 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   },
                 ),
               ),
-
               const SizedBox(height: 24),
 
-              // 2. CATEGORY (RESTORED WITH ICONS)
+              // 2. CATEGORY
               _buildSectionTitle("Category"),
               const SizedBox(height: 10),
               StreamBuilder<QuerySnapshot>(
@@ -158,15 +180,8 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                     .collection('categories')
                     .snapshots(),
                 builder: (context, snapshot) {
-                  // FIX: Use SizedBox instead of Center to prevent layout crash
-                  if (!snapshot.hasData) {
-                    return const SizedBox(
-                        height: 50,
-                        child: Center(child: LinearProgressIndicator()));
-                  }
-
+                  if (!snapshot.hasData) return const SizedBox(height: 50);
                   final categoriesDocs = snapshot.data!.docs;
-
                   return SizedBox(
                     height: 50,
                     child: ListView.builder(
@@ -176,10 +191,8 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                         final data = categoriesDocs[index].data()
                             as Map<String, dynamic>;
                         final String catName = data['name'] ?? 'Unknown';
-                        // Get Icon Key from Firestore
                         final String iconKey = data['icon_key'] ?? 'other';
                         final bool isSelected = manager.category == catName;
-
                         return GestureDetector(
                           onTap: () => manager.setCategory(catName),
                           child: Container(
@@ -196,7 +209,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                             ),
                             child: Row(
                               children: [
-                                // Show the Icon
                                 Icon(_getIconFromKey(iconKey),
                                     size: 18,
                                     color: isSelected
@@ -218,10 +230,9 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   );
                 },
               ),
-
               const SizedBox(height: 24),
 
-              // 3. DETAILS INPUTS
+              // 3. ITEM DETAILS
               _buildSectionTitle("Item Details"),
               const SizedBox(height: 10),
               _buildInputCard(
@@ -230,7 +241,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                       onChanged: manager.setName,
                       decoration: _inputDeco("Title", "e.g. Brahman Bull"))),
               const SizedBox(height: 12),
-
               Row(
                 children: [
                   Expanded(
@@ -243,7 +253,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                                 _inputDeco("Price", "0.00", prefix: "₱ "))),
                   ),
                   const SizedBox(width: 12),
-                  // Shipping Fee Input
                   Expanded(
                     child: _buildInputCard(
                         child: TextFormField(
@@ -255,7 +264,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(
@@ -277,31 +285,79 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   child: TextFormField(
                     controller: _quantityController,
                     keyboardType: TextInputType.number,
-                    decoration: _inputDeco("Quantity (Head Count)", "e.g. 5",
+                    decoration: _inputDeco("Quantity", "e.g. 5",
                         icon: Icons.inventory_2_outlined),
-                    onChanged: (val) =>
-                        manager.setQuantity(val), // <--- CONNECT TO MANAGER
-                    validator: (value) {
-                      if (value == null || value.isEmpty)
-                        return 'Please enter quantity';
-                      if (int.tryParse(value) == null || int.parse(value) < 1) {
-                        return 'Must be at least 1';
-                      }
-                      return null;
-                    },
+                    onChanged: (val) => manager.setQuantity(val),
                   ),
                 )),
-                const SizedBox(height: 10),
               ]),
-              const SizedBox(height: 12),
-              _buildInputCard(
-                  child: TextFormField(
-                controller: _locationController,
-                onChanged: manager.setLocation,
-                decoration: _inputDeco("Location", "City, Province",
-                    icon: Icons.location_on_outlined),
-              )),
+
               const SizedBox(height: 24),
+
+              // --- 4. LOCATION (NEW DROPDOWNS) ---
+              _buildSectionTitle("Location"),
+              const SizedBox(height: 10),
+              if (!_isLocationLoaded)
+                const Center(child: CircularProgressIndicator())
+              else ...[
+                // REGION
+                _buildDropdown(
+                    "Region", _selectedRegion, LocationService.getRegions(),
+                    (val) {
+                  setState(() {
+                    _selectedRegion = val;
+                    _selectedProvince = null;
+                    _selectedCity = null;
+                    _selectedBarangay = null;
+                  });
+                }),
+                const SizedBox(height: 10),
+                // PROVINCE
+                _buildDropdown(
+                    "Province",
+                    _selectedProvince,
+                    _selectedRegion == null
+                        ? []
+                        : LocationService.getProvinces(_selectedRegion!),
+                    (val) {
+                  setState(() {
+                    _selectedProvince = val;
+                    _selectedCity = null;
+                    _selectedBarangay = null;
+                  });
+                }),
+                const SizedBox(height: 10),
+                // CITY
+                _buildDropdown(
+                    "City / Municipality",
+                    _selectedCity,
+                    (_selectedRegion == null || _selectedProvince == null)
+                        ? []
+                        : LocationService.getCities(
+                            _selectedRegion!, _selectedProvince!), (val) {
+                  setState(() {
+                    _selectedCity = val;
+                    _selectedBarangay = null;
+                    // CRITICAL: We save the City as the location for Shipping Calc compatibility
+                    manager.setLocation(val ?? "");
+                  });
+                }),
+                const SizedBox(height: 10),
+                // BARANGAY
+                _buildDropdown(
+                    "Barangay",
+                    _selectedBarangay,
+                    _selectedCity == null
+                        ? []
+                        : LocationService.getBarangays(_selectedRegion!,
+                            _selectedProvince!, _selectedCity!), (val) {
+                  setState(() => _selectedBarangay = val);
+                }),
+              ],
+
+              const SizedBox(height: 24),
+
+              // 5. DESCRIPTION
               _buildSectionTitle("Description"),
               const SizedBox(height: 10),
               _buildInputCard(
@@ -319,9 +375,39 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     );
   }
 
+  // --- HELPER WIDGETS ---
+
+  Widget _buildDropdown(String label, String? value, List<String> items,
+      Function(String?) onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+                color: textDark.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4))
+          ]),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          hint: Text(label, style: TextStyle(color: Colors.grey[600])),
+          isExpanded: true,
+          items: items
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionTitle(String t) => Text(t,
       style: TextStyle(
           fontSize: 16, fontWeight: FontWeight.bold, color: textDark));
+
   Widget _buildInputCard({required Widget child}) => Container(
       decoration: BoxDecoration(
           color: Colors.white,
@@ -333,6 +419,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                 offset: const Offset(0, 4))
           ]),
       child: child);
+
   InputDecoration _inputDeco(String l, String h,
           {String? prefix, IconData? icon, bool isMultiLine = false}) =>
       InputDecoration(

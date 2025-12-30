@@ -1,5 +1,3 @@
-// lib/services/cart_manager.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -40,98 +38,76 @@ class CartManager extends ChangeNotifier {
           .collection('cart')
           .doc(livestock.id);
 
-      await cartRef.set({
-        'livestockId': livestock.id,
-        'name': livestock.name,
-        'price': livestock.price,
-        'shippingFee': livestock.shippingFee,
-        'imagePath': livestock.imagePath,
-        'sellerId': livestock.sellerId,
-        'quantity':
-            FieldValue.increment(quantity), // Increases quantity if exists
-        'addedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final doc = await cartRef.get();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(quantity > 1
-              ? "Added $quantity more to cart!"
-              : "Added to cart successfully! 🛒"),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (doc.exists) {
+        // Update quantity if already in cart
+        final currentQty = doc.data()?['quantity'] ?? 0;
+        await cartRef.update({'quantity': currentQty + quantity});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Cart updated (+1)")),
+        );
+      } else {
+        // Add new item
+        await cartRef.set({
+          'livestockId': livestock.id,
+          'sellerId': livestock.sellerId,
+          'name': livestock.name,
+          'price': livestock.price,
+          'imagePath': livestock.imagePath,
+          'quantity': quantity,
+          'shippingFee':
+              livestock.shippingFee, // Store this for calculations later
+          'addedAt': FieldValue.serverTimestamp(),
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Added to cart")),
+        );
+      }
+      notifyListeners();
       return true;
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to add to cart: $e")),
-      );
+      debugPrint("Cart Error: $e");
       return false;
     }
   }
 
-  // Update quantity manually
-  Future<void> updateQuantity(String livestockId, int newQuantity) async {
-    if (!isLoggedIn || newQuantity <= 0) {
-      await removeFromCart(livestockId);
-      return;
-    }
-
-    await _firestore
-        .collection('users')
-        .doc(currentUser!.uid)
-        .collection('cart')
-        .doc(livestockId)
-        .update({'quantity': newQuantity});
-
-    notifyListeners();
-  }
-
-  // Remove item
   Future<void> removeFromCart(String livestockId) async {
     if (!isLoggedIn) return;
-
     await _firestore
         .collection('users')
         .doc(currentUser!.uid)
         .collection('cart')
         .doc(livestockId)
         .delete();
-
     notifyListeners();
   }
 
-  // Clear cart
-  Future<void> clearCart() async {
-    if (!isLoggedIn) return;
-
-    final batch = _firestore.batch();
-    final snapshot = await _firestore
+  Future<void> updateQuantity(String livestockId, int newQty) async {
+    if (!isLoggedIn || newQty < 1) return;
+    await _firestore
         .collection('users')
         .doc(currentUser!.uid)
         .collection('cart')
-        .get();
-
-    for (var doc in snapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    await batch.commit();
+        .doc(livestockId)
+        .update({'quantity': newQty});
     notifyListeners();
   }
 
-  // Stream of cart items with quantity
-  Stream<List<CartItem>> get cartItemsStream {
+  Stream<List<CartItem>> get cartStream {
     if (!isLoggedIn) return Stream.value([]);
 
     return _firestore
         .collection('users')
         .doc(currentUser!.uid)
         .collection('cart')
+        .orderBy('addedAt', descending: true)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
         final data = doc.data();
 
-        // --- THIS WAS THE SECTION CAUSING THE ERROR ---
+        // --- CONSTRUCT CART ITEM CORRECTLY ---
         return CartItem(
           id: doc.id,
           livestock: Livestock(
@@ -149,11 +125,10 @@ class CartManager extends ChangeNotifier {
             description: '',
             postedAt: Timestamp.now(),
             status: 'active',
-            quantity: 1, // <--- ADDED THIS (Default stock placeholder)
+            quantity: 1,
           ),
           quantity: (data['quantity'] as num?)?.toInt() ?? 1,
         );
-        // ----------------------------------------------
       }).toList();
     });
   }
@@ -170,13 +145,31 @@ class CartManager extends ChangeNotifier {
   }
 }
 
-// Simple model for cart items
+// ---------------------------------------------------------
+// UPDATED CART ITEM CLASS (This fixes your error)
+// ---------------------------------------------------------
 class CartItem {
-  final String id;
+  final String id; // Document ID in 'cart' collection
   final Livestock livestock;
-  final int quantity;
+  int quantity;
 
-  CartItem({required this.id, required this.livestock, required this.quantity});
+  CartItem({
+    required this.id,
+    required this.livestock,
+    this.quantity = 1,
+  });
 
   double get totalPrice => livestock.price * quantity;
+
+  // --- THIS WAS MISSING ---
+  Map<String, dynamic> toMap() {
+    return {
+      'livestockId': livestock.id,
+      'name': livestock.name,
+      'price': livestock.price,
+      'quantity': quantity,
+      'imagePath': livestock.imagePath,
+      'sellerId': livestock.sellerId,
+    };
+  }
 }

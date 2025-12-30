@@ -15,48 +15,34 @@ class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
   late AnimationController _textAnimationController;
   late AnimationController _logoAnimationController;
-  late AnimationController _pulseController;
   late Animation<double> _textAnimation;
   late Animation<double> _logoScaleAnimation;
   late Animation<double> _logoRotationAnimation;
-  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
 
-    // Logo animations
+    // 1. LOGO ANIMATION: A "Pop" with a slight tilt correction
     _logoAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 1200),
     );
 
     _logoScaleAnimation = CurvedAnimation(
       parent: _logoAnimationController,
-      curve: Curves.elasticOut,
+      curve: Curves.elasticOut, // Bouncy pop
     );
 
-    _logoRotationAnimation = Tween<double>(begin: -0.1, end: 0.0).animate(
+    // Starts slightly tilted (-0.05) and straightens to (0.0)
+    _logoRotationAnimation = Tween<double>(begin: -0.05, end: 0.0).animate(
       CurvedAnimation(
         parent: _logoAnimationController,
         curve: Curves.easeOutBack,
       ),
     );
 
-    // Pulse effect for logo
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat(reverse: true);
-
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(
-        parent: _pulseController,
-        curve: Curves.easeInOut,
-      ),
-    );
-
-    // Text writing animation
+    // 2. TEXT ANIMATION: The "Handwriting" effect
     _textAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -67,9 +53,11 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeInOutCubic,
     );
 
-    // Start animations with delays
+    // 3. SEQUENCE
+    // Start Logo immediately
     _logoAnimationController.forward();
 
+    // Start Text 0.6s later
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) _textAnimationController.forward();
     });
@@ -81,7 +69,6 @@ class _SplashScreenState extends State<SplashScreen>
   void dispose() {
     _textAnimationController.dispose();
     _logoAnimationController.dispose();
-    _pulseController.dispose();
     super.dispose();
   }
 
@@ -96,199 +83,56 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Brand Colors
+    const Color darkGreen = Color(0xFF2D6A4F);
     const Color brandGreen = Color(0xFF52B788);
     const Color harvestGold = Color(0xFFD4A574);
-    const Color darkGreen = Color(0xFF2D6A4F);
-    const Color deepGreen = Color(0xFF1B4332);
+    const Color deepForest = Color(0xFF1B4332);
 
     return AgriBentaScaffold(
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Enhanced Premium Logo with Multiple Effects
+            // --- MINIMALIST LOGO ---
+            // No rings, just the icon popping in with a shadow
             ScaleTransition(
               scale: _logoScaleAnimation,
               child: RotationTransition(
                 turns: _logoRotationAnimation,
-                child: AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    return Transform.scale(
-                      scale: _pulseAnimation.value,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Outermost glow effect
-                          Container(
-                            width: 220,
-                            height: 220,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: harvestGold.withOpacity(0.3),
-                                  blurRadius: 60,
-                                  spreadRadius: 10,
-                                ),
-                                BoxShadow(
-                                  color: brandGreen.withOpacity(0.2),
-                                  blurRadius: 80,
-                                  spreadRadius: 20,
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          // Outer decorative ring with gradient border
-                          Container(
-                            width: 190,
-                            height: 190,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  harvestGold.withOpacity(0.4),
-                                  brandGreen.withOpacity(0.3),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // Middle ring
-                          Container(
-                            width: 182,
-                            height: 182,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
-                              border: Border.all(
-                                color: harvestGold.withOpacity(0.5),
-                                width: 2,
-                              ),
-                            ),
-                          ),
-
-                          // Main gradient ring with enhanced shadow
-                          Container(
-                            width: 165,
-                            height: 165,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFD4A574),
-                                  Color(0xFFB8860B),
-                                  Color(0xFF52B788),
-                                  Color(0xFF40916C),
-                                ],
-                                stops: [0.0, 0.3, 0.7, 1.0],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: brandGreen.withOpacity(0.5),
-                                  blurRadius: 35,
-                                  offset: const Offset(0, 12),
-                                  spreadRadius: 2,
-                                ),
-                                BoxShadow(
-                                  color: harvestGold.withOpacity(0.3),
-                                  blurRadius: 25,
-                                  offset: const Offset(-5, -5),
-                                ),
-                              ],
-                            ),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: deepGreen.withOpacity(0.1),
-                                    blurRadius: 15,
-                                    spreadRadius: -2,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // Inner decorative circle
-                          Container(
-                            width: 145,
-                            height: 145,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: brandGreen.withOpacity(0.1),
-                                width: 1,
-                              ),
-                            ),
-                          ),
-
-                          // Icon with enhanced styling
-                          ClipOval(
-                            child: Container(
-                              width: 130,
-                              height: 130,
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.0),
-                                    brandGreen.withOpacity(0.05),
-                                  ],
-                                ),
-                              ),
-                              child: Image.asset(
-                                'assets/icons/livestock.png',
-                                color: const Color(0xFF40916C),
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-
-                          // Subtle inner highlight
-                          Positioned(
-                            top: 25,
-                            left: 40,
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: RadialGradient(
-                                  colors: [
-                                    Colors.white.withOpacity(0.4),
-                                    Colors.white.withOpacity(0.0),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                child: Container(
+                  // Soft glow behind the icon
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: brandGreen.withOpacity(0.25),
+                        blurRadius: 50,
+                        spreadRadius: 10,
+                        offset: const Offset(0, 10),
                       ),
-                    );
-                  },
+                    ],
+                  ),
+                  child: Image.asset(
+                    'assets/icons/livestock.png',
+                    color: deepForest, // Very dark green (Looks like ink)
+                    width: 170, // Much larger size
+                    height: 170,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 40),
+            // const SizedBox(height: 20),
 
-            // Handwriting Effect Text
+            // --- TEXT ANIMATION ---
             AnimatedBuilder(
               animation: _textAnimation,
               builder: (context, child) {
                 return Column(
                   children: [
-                    // Main text with writing effect
+                    // 1. "Handwriting" Text
                     ShaderMask(
                       shaderCallback: (bounds) {
                         return LinearGradient(
@@ -312,39 +156,29 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Text(
                         "AgriBenta",
                         style: GoogleFonts.pacifico(
-                          fontSize: 52,
+                          fontSize: 56,
                           fontWeight: FontWeight.w500,
-                          letterSpacing: 1.8,
+                          letterSpacing: 1.2,
                           color: darkGreen,
-                          shadows: [
-                            Shadow(
-                              color: harvestGold.withOpacity(0.3),
-                              offset: const Offset(2, 2),
-                              blurRadius: 8,
-                            ),
-                          ],
                         ),
                       ),
                     ),
 
-                    // Subtitle with fade-in
-                    // Subtitle with fade-in
+                    // 2. Subtitle (With Crash Fix)
                     Opacity(
-                      // FIX: Add .clamp(0.0, 1.0) to prevent crash
-                      opacity: (_textAnimation.value > 0.7
-                              ? (_textAnimation.value - 0.7) / 0.3
+                      opacity: (_textAnimation.value > 0.6
+                              ? (_textAnimation.value - 0.6) / 0.4
                               : 0.0)
-                          .clamp(0.0, 1.0),
-
+                          .clamp(0.0, 1.0), // <--- FIX APPLIED
                       child: Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           "Livestock Marketplace",
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 3.0,
-                            color: harvestGold.withOpacity(0.8),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 4.0,
+                            color: harvestGold,
                           ),
                         ),
                       ),
@@ -354,28 +188,17 @@ class _SplashScreenState extends State<SplashScreen>
               },
             ),
 
-            const SizedBox(height: 50),
+            const SizedBox(height: 60),
 
-            // Enhanced Loading Indicator
+            // Minimalist Loader
             FadeTransition(
               opacity: _textAnimation,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: brandGreen.withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
+              child: const SizedBox(
+                width: 24,
+                height: 24,
                 child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  valueColor: AlwaysStoppedAnimation<Color>(brandGreen),
-                  backgroundColor: brandGreen.withOpacity(0.1),
+                  strokeWidth: 2.5,
+                  color: brandGreen,
                 ),
               ),
             ),

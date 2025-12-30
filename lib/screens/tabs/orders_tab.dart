@@ -4,8 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:agribenta/services/notification_manager.dart';
 import 'package:intl/intl.dart';
 
+// In lib/screens/orders_tab.dart
+
 class OrdersTab extends StatelessWidget {
-  const OrdersTab({super.key});
+  final int initialIndex; // 1. Add this field
+
+  // 2. Add it to the constructor (default to 0)
+  const OrdersTab({super.key, this.initialIndex = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -13,6 +18,7 @@ class OrdersTab extends StatelessWidget {
 
     return DefaultTabController(
       length: 3,
+      initialIndex: initialIndex, // 3. Pass the index here
       child: Scaffold(
         backgroundColor: const Color(0xFFF9F6F0),
         appBar: AppBar(
@@ -29,16 +35,16 @@ class OrdersTab extends StatelessWidget {
             indicatorColor: brandGreen,
             indicatorWeight: 3,
             tabs: [
-              Tab(text: "Pending"),
-              Tab(text: "To Receive"),
-              Tab(text: "Completed"),
+              Tab(text: "Pending"), // Index 0
+              Tab(text: "To Receive"), // Index 1
+              Tab(text: "Completed"), // Index 2
             ],
           ),
         ),
         body: const TabBarView(
           children: [
             _BuyerOrderList(status: 'pending'),
-            _BuyerOrderList(status: 'confirmed'), // confirmed = To Receive
+            _BuyerOrderList(status: 'confirmed'),
             _BuyerOrderList(status: 'completed'),
           ],
         ),

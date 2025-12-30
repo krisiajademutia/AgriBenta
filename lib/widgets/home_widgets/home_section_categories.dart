@@ -4,7 +4,7 @@ import 'package:agribenta/models/category_model.dart';
 
 typedef CategorySelectedCallback = void Function(String categoryName);
 
-class SectionCategories extends StatelessWidget {
+class SectionCategories extends StatefulWidget {
   final CategorySelectedCallback onCategorySelected;
   final String selectedCategoryName;
 
@@ -13,6 +13,31 @@ class SectionCategories extends StatelessWidget {
     required this.onCategorySelected,
     required this.selectedCategoryName,
   });
+
+  @override
+  State<SectionCategories> createState() => _SectionCategoriesState();
+}
+
+class _SectionCategoriesState extends State<SectionCategories> {
+  // 1. Keep the Stream active so it doesn't reload on tap
+  late Stream<QuerySnapshot> _categoriesStream;
+
+  // 2. Keep the Scroll Controller alive to remember position
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the stream only ONCE
+    _categoriesStream =
+        FirebaseFirestore.instance.collection('categories').snapshots();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose(); // Clean up memory
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,41 +59,58 @@ class SectionCategories extends StatelessWidget {
         SizedBox(
           height: 90,
           child: StreamBuilder<QuerySnapshot>(
-            stream:
-                FirebaseFirestore.instance.collection('categories').snapshots(),
+            stream: _categoriesStream, // Use the stored stream
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                     child: CircularProgressIndicator(color: Color(0xFF52B788)));
               }
 
-              // 1. Convert Firestore Data to your Category Objects
-              final categories = snapshot.data?.docs.map((doc) {
-                    return Category.fromSnapshot(
-                        doc.id, doc.data() as Map<String, dynamic>);
-                  }).toList() ??
-                  [];
+              if (snapshot.hasError) {
+                return const Text("Error loading categories");
+              }
 
-              final allCats = [
-                Category(id: '0', name: 'All', iconKey: 'other'),
-                ...categories
-              ];
+              final docs = snapshot.data?.docs ?? [];
 
-              return ListView.builder(
+              // --- FIXED SECTION START ---
+              // We map the docs carefully to match your Model's requirements
+              List<Category> categories = docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>; // 1. Get Data
+                return Category.fromSnapshot(
+                    doc.id, data); // 2. Pass ID & Data separately
+              }).toList();
+              // --- FIXED SECTION END ---
+
+              // Add "All" Category at the start
+              categories.insert(
+                0,
+                Category(
+                  id: 'all',
+                  name: 'All',
+                  iconKey: 'grid_view',
+                ),
+              );
+
+              return ListView.separated(
+                controller: _scrollController, // Attach controller
                 scrollDirection: Axis.horizontal,
-                itemCount: allCats.length,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: categories.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
-                  final cat = allCats[index];
-                  final isSelected = cat.name == selectedCategoryName;
+                  final cat = categories[index];
+                  // Compare names to check if selected
+                  final isSelected = widget.selectedCategoryName == cat.name;
 
                   return GestureDetector(
-                    onTap: () => onCategorySelected(cat.name),
-                    child: Container(
+                    onTap: () => widget.onCategorySelected(cat.name),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
                       width: 75,
-                      margin: const EdgeInsets.only(right: 12),
                       decoration: BoxDecoration(
-                        color:
-                            isSelected ? const Color(0xFF52B788) : Colors.white,
+                        color: isSelected
+                            ? const Color(0xFF52B788) // Brand Green
+                            : Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           if (!isSelected)

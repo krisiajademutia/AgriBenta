@@ -53,5 +53,11 @@
 		<string>This app needs your location to automatically fill the Location field on your profile.</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>We need access to your library to send photos and videos in chat.</string>
+		<key>NSCameraUsageDescription</key>
+		<string>We need access to your camera to take photos for the chat.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>We need access to the microphone for recording videos.</string>
 	</dict>
 </plist>

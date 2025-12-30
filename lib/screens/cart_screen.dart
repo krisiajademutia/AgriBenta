@@ -96,7 +96,7 @@ class _CartScreenState extends State<CartScreen> {
     return Consumer<CartManager>(
       builder: (context, cartManager, child) {
         return StreamBuilder<List<CartItem>>(
-          stream: cartManager.cartItemsStream,
+          stream: cartManager.cartStream,
           builder: (context, snapshot) {
             // 1. Handle Loading & Empty States
             if (snapshot.connectionState == ConnectionState.waiting) {
