@@ -25,30 +25,28 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
   final currentUser = FirebaseAuth.instance.currentUser!;
   final ImagePicker _picker = ImagePicker();
-
-  // --- IMGBB CONFIGURATION ---
-  final String imgbbApiKey = '7153706809c25e5afba9521b8a500079';
   final Dio _dio = Dio();
+  final String imgbbApiKey = '7153706809c25e5afba9521b8a500079';
 
   late Stream<QuerySnapshot> _messagesStream;
   bool _isUploading = false;
-
-  // New variable to hold the dynamic name
   String _displayUserName = "";
+
+  // --- NEW: AVATAR URLs ---
+  String? _otherUserPhotoUrl;
+  String? _myPhotoUrl;
 
   @override
   void initState() {
     super.initState();
-    // 1. Initialize with the passed name
     _displayUserName = widget.otherUserName;
+    _fetchUserProfiles(); // Fetch photos
+    _markAsRead();
 
-    // 2. If the passed name is placeholder, fetch the real one
-    if (_displayUserName == "Loading..." || _displayUserName.isEmpty) {
-      _fetchUserName();
-    }
-
+    // Reverse order: Newest at bottom
     _messagesStream = FirebaseFirestore.instance
         .collection('chats')
         .doc(widget.chatId)
@@ -57,126 +55,174 @@ class _ChatScreenState extends State<ChatScreen> {
         .snapshots();
   }
 
-  // --- NEW: FETCH NAME IF MISSING ---
-  Future<void> _fetchUserName() async {
+  // --- 1. FETCH PHOTOS ---
+  Future<void> _fetchUserProfiles() async {
     try {
-      final doc = await FirebaseFirestore.instance
+      // Fetch Other User
+      DocumentSnapshot otherDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.otherUserId)
           .get();
 
-      if (doc.exists && mounted) {
+      // Fetch My Profile
+      DocumentSnapshot myDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+
+      if (mounted) {
         setState(() {
-          final data = doc.data() as Map<String, dynamic>;
-          _displayUserName = data['name'] ?? "User";
+          if (otherDoc.exists) {
+            final data = otherDoc.data() as Map<String, dynamic>;
+            _displayUserName = data['name'] ?? widget.otherUserName;
+            _otherUserPhotoUrl = data['profileImageUrl'];
+          }
+          if (myDoc.exists) {
+            final myData = myDoc.data() as Map<String, dynamic>;
+            _myPhotoUrl = myData['profileImageUrl'];
+          }
         });
       }
     } catch (e) {
-      debugPrint("Error fetching user name: $e");
+      debugPrint("Error fetching profiles: $e");
     }
   }
 
-  @override
-  void dispose() {
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  // --- SMART DATE FORMATTER ---
+  String _formatBubbleTime(Timestamp? timestamp) {
+    if (timestamp == null) return "Sending...";
+    final DateTime date = timestamp.toDate();
+    final DateTime now = DateTime.now();
+
+    if (now.year == date.year &&
+        now.month == date.month &&
+        now.day == date.day) {
+      return DateFormat('h:mm a').format(date);
+    }
+
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (yesterday.year == date.year &&
+        yesterday.month == date.month &&
+        yesterday.day == date.day) {
+      return "Yesterday, ${DateFormat('h:mm a').format(date)}";
+    }
+
+    return DateFormat('MMM d, h:mm a').format(date);
   }
 
-  // --- IMAGE PICKER & UPLOAD ---
+  void _markAsRead() {
+    FirebaseFirestore.instance.collection('chats').doc(widget.chatId).set({
+      'unreadCounts': {
+        currentUser.uid: 0,
+      }
+    }, SetOptions(merge: true));
+  }
+
+  void _sendMessage({String? text, String? imageUrl}) async {
+    if ((text == null || text.trim().isEmpty) && imageUrl == null) return;
+
+    final String messageText = text ?? "";
+    _messageController.clear();
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+        'senderId': currentUser.uid,
+        'text': messageText,
+        'imageUrl': imageUrl ?? "",
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .set({
+        'lastMessage': imageUrl != null ? "Sent an image" : messageText,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'participants': [currentUser.uid, widget.otherUserId],
+        'unreadCounts': {
+          widget.otherUserId: FieldValue.increment(1),
+          currentUser.uid: 0
+        }
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Error sending message: $e");
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? file =
-          await _picker.pickImage(source: source, imageQuality: 50);
-      if (file != null) {
-        await _uploadToImgBB(File(file.path));
+      final pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+        maxWidth: 800,
+      );
+      if (pickedFile != null) {
+        _uploadImageToImgBB(File(pickedFile.path));
       }
     } catch (e) {
       debugPrint("Error picking image: $e");
     }
   }
 
-  Future<void> _uploadToImgBB(File file) async {
+  Future<void> _uploadImageToImgBB(File imageFile) async {
     setState(() => _isUploading = true);
     try {
-      String fileName = file.path.split('/').last;
-      FormData formData = FormData.fromMap({
-        "key": imgbbApiKey,
-        "image": await MultipartFile.fromFile(file.path, filename: fileName),
+      final formData = FormData.fromMap({
+        'image': await MultipartFile.fromFile(imageFile.path),
       });
 
-      Response response = await _dio.post(
-        "https://api.imgbb.com/1/upload",
+      final response = await _dio.post(
+        'https://api.imgbb.com/1/upload',
         data: formData,
+        queryParameters: {'key': imgbbApiKey},
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        String imageUrl = response.data['data']['url'];
-        await _sendMessage(fileUrl: imageUrl, type: 'image');
+        final String uploadedUrl = response.data['data']['url'];
+        _sendMessage(imageUrl: uploadedUrl);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Upload failed: $e")),
-        );
-      }
+      debugPrint("ImgBB Upload Error: $e");
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
   }
 
-  // --- SEND MESSAGE ---
-  Future<void> _sendMessage(
-      {String? text, String? fileUrl, String type = 'text'}) async {
-    if ((text == null || text.trim().isEmpty) && fileUrl == null) return;
+  void _openFullScreenImage(String url) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            iconTheme: const IconThemeData(color: Colors.white),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              child: Image.network(url),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
-    final String content = text?.trim() ?? '';
-    _messageController.clear();
-
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      final messageRef = FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatId)
-          .collection('messages')
-          .doc();
-
-      final messageData = {
-        'senderId': currentUser.uid,
-        'text': content,
-        'fileUrl': fileUrl,
-        'type': type,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      };
-
-      batch.set(messageRef, messageData);
-
-      final chatRef =
-          FirebaseFirestore.instance.collection('chats').doc(widget.chatId);
-      String previewText = content;
-      if (type == 'image') previewText = "📷 Sent a photo";
-
-      batch.set(
-          chatRef,
-          {
-            'lastMessage': previewText,
-            'lastMessageTime': FieldValue.serverTimestamp(),
-            'participants': [currentUser.uid, widget.otherUserId],
-            'users':
-                FieldValue.arrayUnion([currentUser.uid, widget.otherUserId])
-          },
-          SetOptions(merge: true));
-
-      await batch.commit();
-
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(0,
-            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-      }
-    } catch (e) {
-      debugPrint("Send error: $e");
-    }
+  // --- 2. BUILD AVATAR HELPER ---
+  Widget _buildAvatar(String? url) {
+    return CircleAvatar(
+      radius: 16, // Small avatar size
+      backgroundColor: Colors.grey[300],
+      backgroundImage:
+          (url != null && url.isNotEmpty) ? NetworkImage(url) : null,
+      child: (url == null || url.isEmpty)
+          ? const Icon(Icons.person, size: 20, color: Colors.grey)
+          : null,
+    );
   }
 
   @override
@@ -184,12 +230,39 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF9F6F0),
       appBar: AppBar(
-        // Use the local state variable _displayUserName instead of widget.otherUserName
-        title: Text(_displayUserName,
-            style: const TextStyle(color: Color(0xFF1B4332))),
+        title: Row(
+          children: [
+            // AppBar Avatar
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: Colors.grey[200],
+              backgroundImage: _otherUserPhotoUrl != null
+                  ? NetworkImage(_otherUserPhotoUrl!)
+                  : null,
+              child: _otherUserPhotoUrl == null
+                  ? const Icon(Icons.person, color: Colors.grey)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _displayUserName,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Color(0xFF1B4332)),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
         backgroundColor: Colors.white,
-        elevation: 1,
-        iconTheme: const IconThemeData(color: Color(0xFF1B4332)),
+        elevation: 0.5,
+        titleSpacing: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1B4332)),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
@@ -198,34 +271,141 @@ class _ChatScreenState extends State<ChatScreen> {
               stream: _messagesStream,
               builder: (context, snapshot) {
                 if (snapshot.hasError)
-                  return const Center(child: Text("Error loading chats"));
+                  return const Center(child: Text("Error"));
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.chat_bubble_outline,
-                            size: 48, color: Colors.grey[300]),
-                        const SizedBox(height: 8),
-                        Text("Say hi!",
-                            style: TextStyle(color: Colors.grey[400])),
-                      ],
-                    ),
-                  );
-                }
+                final docs = snapshot.data!.docs;
 
                 return ListView.builder(
-                  controller: _scrollController,
                   reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.docs.length,
+                  controller: _scrollController,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final msg = snapshot.data!.docs[index];
-                    return _buildMessageBubble(msg);
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final bool isMe = data['senderId'] == currentUser.uid;
+                    final String text = data['text'] ?? "";
+                    final String imageUrl = data['imageUrl'] ?? "";
+                    final Timestamp? timestamp = data['createdAt'];
+
+                    // --- 3. ROW LAYOUT FOR AVATARS ---
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6.0),
+                      child: Row(
+                        mainAxisAlignment: isMe
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.end, // Align avatar to bottom
+                        children: [
+                          // OTHER USER AVATAR (Left)
+                          if (!isMe) ...[
+                            _buildAvatar(_otherUserPhotoUrl),
+                            const SizedBox(width: 8),
+                          ],
+
+                          // MESSAGE BUBBLE
+                          Flexible(
+                            child: Container(
+                              padding: imageUrl.isNotEmpty
+                                  ? const EdgeInsets.all(4)
+                                  : const EdgeInsets.all(12),
+                              constraints: BoxConstraints(
+                                  maxWidth:
+                                      MediaQuery.of(context).size.width * 0.70),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? const Color(0xFF52B788)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: isMe
+                                      ? const Radius.circular(16)
+                                      : const Radius.circular(4),
+                                  bottomRight: isMe
+                                      ? const Radius.circular(4)
+                                      : const Radius.circular(16),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (imageUrl.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () =>
+                                          _openFullScreenImage(imageUrl),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.network(
+                                          imageUrl,
+                                          loadingBuilder:
+                                              (context, child, loading) {
+                                            if (loading == null) return child;
+                                            return Container(
+                                              height: 200,
+                                              width: 200,
+                                              color: Colors.grey[200],
+                                              child: const Center(
+                                                  child:
+                                                      CircularProgressIndicator()),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  if (text.isNotEmpty)
+                                    Padding(
+                                      padding: imageUrl.isNotEmpty
+                                          ? const EdgeInsets.only(
+                                              top: 8, left: 4, right: 4)
+                                          : EdgeInsets.zero,
+                                      child: Text(
+                                        text,
+                                        style: TextStyle(
+                                          color: isMe
+                                              ? Colors.white
+                                              : const Color(0xFF1B4332),
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4),
+                                    child: Text(
+                                      _formatBubbleTime(timestamp),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: isMe
+                                            ? Colors.white.withOpacity(0.7)
+                                            : Colors.grey[500],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // MY AVATAR (Right)
+                          if (isMe) ...[
+                            const SizedBox(width: 8),
+                            _buildAvatar(_myPhotoUrl),
+                          ],
+                        ],
+                      ),
+                    );
                   },
                 );
               },
@@ -233,108 +413,26 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           if (_isUploading)
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              color: Colors.black12,
+              padding: const EdgeInsets.all(8),
+              color: Colors.grey[100],
               child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2)),
-                  SizedBox(width: 8),
-                  Text("Uploading image...", style: TextStyle(fontSize: 12))
+                  SizedBox(width: 10),
+                  Text("Uploading image..."),
                 ],
               ),
             ),
-          _buildInputArea(),
+          _buildMessageInput(),
         ],
       ),
     );
   }
 
-  Widget _buildMessageBubble(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final isMe = data['senderId'] == currentUser.uid;
-    final time = (data['createdAt'] as Timestamp?)?.toDate();
-    final type = data['type'] ?? 'text';
-    final fileUrl = data['fileUrl'];
-    final text = data['text'] ?? '';
-
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        constraints:
-            BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-          color: isMe ? const Color(0xFF52B788) : Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(12),
-            topRight: const Radius.circular(12),
-            bottomLeft: isMe ? const Radius.circular(12) : Radius.zero,
-            bottomRight: isMe ? Radius.zero : const Radius.circular(12),
-          ),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 5,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (type == 'image' && fileUrl != null)
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-                child: Image.network(
-                  fileUrl,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (ctx, child, progress) {
-                    if (progress == null) return child;
-                    return Container(
-                      height: 150,
-                      width: 200,
-                      color: Colors.black12,
-                      child: const Center(child: CircularProgressIndicator()),
-                    );
-                  },
-                  errorBuilder: (ctx, _, __) => const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Icon(Icons.broken_image, color: Colors.grey)),
-                ),
-              )
-            else if (text.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 16, right: 16, top: 10),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                      color: isMe ? Colors.white : const Color(0xFF1B4332),
-                      fontSize: 16),
-                ),
-              ),
-            if (time != null)
-              Padding(
-                padding:
-                    const EdgeInsets.only(right: 8, bottom: 4, top: 4, left: 8),
-                child: Text(
-                  DateFormat('h:mm a').format(time),
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isMe ? Colors.white70 : Colors.grey[400],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputArea() {
+  Widget _buildMessageInput() {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
@@ -352,6 +450,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Expanded(
               child: TextField(
                 controller: _messageController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   hintText: "Type a message...",
                   filled: true,

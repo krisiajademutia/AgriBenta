@@ -1,6 +1,6 @@
-// lib/screens/edit_profile_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <--- 1. IMPORT THIS for inputFormatters
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:agribenta/services/profile_manager.dart';
@@ -22,7 +22,7 @@ class EditProfileScreen extends StatelessWidget {
     });
 
     return Scaffold(
-      backgroundColor: bgCream, // <--- Cream Background
+      backgroundColor: bgCream,
       appBar: AppBar(
         backgroundColor: bgCream,
         elevation: 0,
@@ -33,8 +33,7 @@ class EditProfileScreen extends StatelessWidget {
         ),
         title: const Text(
           "Edit Profile",
-          style: TextStyle(
-              fontWeight: FontWeight.bold, color: textDark), // Dark Text
+          style: TextStyle(fontWeight: FontWeight.bold, color: textDark),
         ),
       ),
       body: SingleChildScrollView(
@@ -59,7 +58,6 @@ class EditProfileScreen extends StatelessWidget {
                         },
                   child: Stack(
                     children: [
-                      // Container for Shadow & Border
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
@@ -91,15 +89,12 @@ class EditProfileScreen extends StatelessWidget {
                               : null,
                         ),
                       ),
-
-                      // Loading Indicator
                       if (mgr.isUploading)
                         const Positioned.fill(
                           child: Center(
                               child: CircularProgressIndicator(
                                   color: brandGreen, strokeWidth: 3)),
                         )
-                      // Camera Icon
                       else
                         Positioned(
                           bottom: 0,
@@ -107,7 +102,7 @@ class EditProfileScreen extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: textDark, // Dark Green Badge
+                              color: textDark,
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 2),
                             ),
@@ -122,7 +117,7 @@ class EditProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 30),
 
-            // --- FULL NAME (Read Only) ---
+            // --- FULL NAME ---
             Consumer<ProfileManager>(
               builder: (context, mgr, child) {
                 return Column(
@@ -131,7 +126,7 @@ class EditProfileScreen extends StatelessWidget {
                       mgr.name ?? '',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: textDark, // Dark Text
+                        color: textDark,
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
@@ -148,6 +143,11 @@ class EditProfileScreen extends StatelessWidget {
                 return _buildInputWrapper(
                   child: TextField(
                     keyboardType: TextInputType.phone,
+                    // 2. ADD FORMATTERS HERE
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly, // Numbers only
+                      LengthLimitingTextInputFormatter(11), // Max 11 digits
+                    ],
                     style: const TextStyle(
                         color: textDark, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
@@ -156,7 +156,7 @@ class EditProfileScreen extends StatelessWidget {
                       hintText: "e.g. 09306284213",
                       hintStyle: TextStyle(color: Colors.grey[400]),
                       prefixIcon: const Icon(Icons.phone, color: brandGreen),
-                      border: InputBorder.none, // Clean look
+                      border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 16),
                     ),
@@ -199,7 +199,7 @@ class EditProfileScreen extends StatelessWidget {
                             ? null
                             : () async {
                                 final success = await mgr.getCurrentLocation();
-                                if (success) {
+                                if (success && context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -207,7 +207,7 @@ class EditProfileScreen extends StatelessWidget {
                                       backgroundColor: brandGreen,
                                     ),
                                   );
-                                } else {
+                                } else if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text('Failed to get location.'),
@@ -229,7 +229,7 @@ class EditProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 50),
 
-            // --- SAVE BUTTON (With Spinner & Toast) ---
+            // --- SAVE BUTTON ---
             Consumer<ProfileManager>(
               builder: (context, mgr, child) {
                 final isDisabled = mgr.isUploading || mgr.isLoadingLocation;
@@ -250,7 +250,23 @@ class EditProfileScreen extends StatelessWidget {
                     onPressed: isDisabled
                         ? null
                         : () async {
+                            // 3. VALIDATION LOGIC START
+                            final phone = mgr.phone ?? '';
+                            if (phone.length != 11 || !phone.startsWith('09')) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      "Phone number must be exactly 11 digits and start with 09."),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                              return; // STOP HERE if invalid
+                            }
+                            // 3. VALIDATION LOGIC END
+
                             final success = await mgr.saveProfile();
+
+                            if (!context.mounted) return;
 
                             if (success) {
                               ScaffoldMessenger.of(context)
@@ -277,7 +293,7 @@ class EditProfileScreen extends StatelessWidget {
                                     duration: const Duration(seconds: 3),
                                   ),
                                 );
-                              Navigator.pop(context); // Go back after success
+                              Navigator.pop(context);
                             } else {
                               ScaffoldMessenger.of(context)
                                 ..hideCurrentSnackBar()
@@ -339,7 +355,6 @@ class EditProfileScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget to give TextFields that "Card" look
   Widget _buildInputWrapper({required Widget child}) {
     return Container(
       decoration: BoxDecoration(
@@ -347,8 +362,7 @@ class EditProfileScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color:
-                const Color(0xFF1B4332).withOpacity(0.05), // Soft Dark Shadow
+            color: const Color(0xFF1B4332).withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )

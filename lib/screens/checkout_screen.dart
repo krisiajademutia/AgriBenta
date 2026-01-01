@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:agribenta/models/cart_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/cart_manager.dart';
@@ -88,6 +90,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _isPickUp = false;
   double _shippingFee = 0.0;
   String _shippingLabel = "Enter address to calculate";
+  String _sellerPhone = "Loading...";
   bool _isLoading = false;
 
   // --- BRAND COLORS ---
@@ -99,6 +102,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void initState() {
     super.initState();
     _initLocationData();
+    _fetchSellerInfo();
+  }
+
+  Future<void> _fetchSellerInfo() async {
+    if (widget.items.isEmpty) return;
+
+    // We get the sellerId from the first item in the cart
+    final sellerId = widget.items.first.livestock.sellerId;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(sellerId)
+          .get();
+
+      if (doc.exists && mounted) {
+        setState(() {
+          // Fetch 'phone' field, fallback if missing
+          _sellerPhone = doc.data()?['phone'] ?? "No # Provided";
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching seller phone: $e");
+    }
   }
 
   Future<void> _initLocationData() async {
@@ -154,8 +181,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
   }
 
+  // FIXED: Changed 0 to 0.0 to match the double type of totalPrice
   double get subtotal =>
-      widget.items.fold(0, (sum, item) => sum + item.totalPrice);
+      widget.items.fold(0.0, (sum, item) => sum + item.totalPrice);
+
   double get total => subtotal + _shippingFee;
 
   Future<void> _placeOrder() async {
@@ -194,7 +223,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     if (success && mounted) {
       final cartManager = context.read<CartManager>();
-      for (var item in widget.items) await cartManager.removeFromCart(item.id);
+      // FIXED: Used item.livestock.id instead of item.id
+      for (var item in widget.items) {
+        await cartManager.removeItem(item.livestock.id);
+      }
       _showSuccessDialog();
     }
   }
@@ -230,8 +262,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       borderRadius: BorderRadius.circular(10)),
                 ),
                 onPressed: () {
-                  Navigator.of(ctx).pop();
-                  Navigator.of(context).popUntil((route) => route.isFirst);
+                  Navigator.of(ctx).pop(); // 1. Close the Success Dialog
+                  Navigator.of(context).pop(); // 2. Close Checkout Screen
+                  Navigator.of(context)
+                      .pop(); // 3. Close Cart Screen -> Back to Marketplace
                 },
                 child: const Text("Back to Home",
                     style: TextStyle(color: Colors.white)),
@@ -272,7 +306,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   _buildOrderSummarySection(),
                   const SizedBox(height: 16),
                   _buildPaymentSection(),
-                  const SizedBox(height: 30), // Extra space for bottom bar
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -400,7 +434,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     image: DecorationImage(
                       image: NetworkImage(item.livestock.imagePath),
                       fit: BoxFit.cover,
-                      onError: (e, s) {}, // Handle error gracefully
+                      onError: (e, s) {},
                     ),
                   ),
                 ),
@@ -413,7 +447,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 15)),
                       const SizedBox(height: 4),
-                      Text("Qty: ${item.quantity}",
+                      Text("Quantity: ${item.quantity}",
                           style:
                               TextStyle(color: Colors.grey[600], fontSize: 13)),
                     ],
@@ -459,7 +493,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       const Icon(Icons.info_outline,
                           color: Colors.blue, size: 20),
                       const SizedBox(width: 8),
-                      Text("Merchant: 0917 123 4567",
+                      Text(_sellerPhone,
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.blue[800])),
@@ -671,7 +705,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       height: 24,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2))
-                  : const Text("Place Order Now",
+                  : const Text("Place Order",
                       style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

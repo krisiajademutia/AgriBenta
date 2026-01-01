@@ -124,13 +124,11 @@ class _OrderCard extends StatefulWidget {
 }
 
 class _OrderCardState extends State<_OrderCard> {
-  // To store fetched buyer name if needed
   String? _fetchedBuyerName;
 
   @override
   void initState() {
     super.initState();
-    // If buyer name is missing/unknown, try to fetch it
     final data = widget.order.data() as Map<String, dynamic>;
     final currentName = data['buyerName'];
     if (currentName == null ||
@@ -176,7 +174,8 @@ class _OrderCardState extends State<_OrderCard> {
             final livestockRef = FirebaseFirestore.instance
                 .collection('livestock')
                 .doc(livestockId);
-            batch.update(livestockRef, {'status': 'sold'});
+            // batch.update(livestockRef, {'status': 'sold'});
+            // Commented out: Depending on quantity, you might deduct instead of marking 'sold'
           }
         }
       }
@@ -230,132 +229,136 @@ class _OrderCardState extends State<_OrderCard> {
     final items = data['items'] as List<dynamic>;
     final total = data['totalAmount'] ?? 0.0;
 
-    // Priority: Fetched Name -> Stored Name -> Default
+    // Use fetched name if available, otherwise stored name
     final buyerName = _fetchedBuyerName ?? data['buyerName'] ?? 'Unknown Buyer';
-
     final address = data['deliveryAddress'] ?? 'No Address';
-    final timestamp = (data['createdAt'] as Timestamp?)?.toDate();
+    final paymentMethod = data['paymentMethod'] ?? 'COD';
+    final shippingFee = data['shippingFee'] ?? 0.0;
 
-    return Container(
+    // Get Image of first item
+    String? imagePath;
+    if (items.isNotEmpty) {
+      imagePath = items.first['imagePath'];
+    }
+
+    return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: Buyer info
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("Order #${widget.order.id.substring(0, 6).toUpperCase()}",
-                    style: TextStyle(
-                        color: Colors.grey[600], fontWeight: FontWeight.bold)),
-                if (timestamp != null)
-                  Text(DateFormat('MMM d, h:mm a').format(timestamp),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Order from $buyerName",
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                          DateFormat('MMM d, h:mm a').format(
+                              (data['createdAt'] as Timestamp).toDate()),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[500])),
+                    ],
+                  ),
+                ),
+                Text("Total: ₱${total.toStringAsFixed(0)}",
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B4332),
+                        fontSize: 16)),
               ],
             ),
-          ),
-          const Divider(height: 1),
+            const Divider(),
 
-          // Items
-          ...items.map((item) {
-            // FIX: Check for empty string images
-            final String? imageUrl = item['image'];
-            final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
-
-            return ListTile(
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: hasImage
-                    ? Image.network(
-                        imageUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                              width: 50,
-                              height: 50,
-                              color: Colors.grey[200],
-                              child: const Icon(Icons.broken_image, size: 20));
-                        },
-                      )
-                    : Container(
-                        width: 50,
-                        height: 50,
+            // Item List with Images
+            ...items.map((item) {
+              final itemImg = item['imagePath'];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    // IMAGE DISPLAY
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        width: 40,
+                        height: 40,
                         color: Colors.grey[200],
-                        child: const Icon(Icons.image_not_supported, size: 20)),
-              ),
-              title: Text(item['name'] ?? 'Item',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("Qty: ${item['quantity']}"),
-              trailing: Text("₱${item['price']}",
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            );
-          }),
-
-          const Divider(height: 1),
-
-          // Buyer Info
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.person_outline,
-                        size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Text(buyerName,
-                        style: const TextStyle(fontWeight: FontWeight.w500)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
+                        child: (itemImg != null && itemImg.isNotEmpty)
+                            ? Image.network(
+                                itemImg,
+                                fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, stack) => const Icon(
+                                    Icons.image,
+                                    size: 20,
+                                    color: Colors.grey),
+                              )
+                            : const Icon(Icons.image,
+                                size: 20, color: Colors.grey),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                        child: Text(address,
-                            style: TextStyle(color: Colors.grey[600]))),
+                      child: Text(
+                          "${item['quantity']}x ${item['name']} (${item['weight'] ?? ''})",
+                          style: const TextStyle(fontSize: 14)),
+                    ),
+                    Text("₱${item['price']}",
+                        style: TextStyle(color: Colors.grey[600]))
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Total Earnings",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text("₱${total.toStringAsFixed(2)}",
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF52B788))),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              );
+            }).toList(),
 
-          // Buttons
-          if (widget.status == 'pending')
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Row(
+            const SizedBox(height: 12),
+
+            // Shipping & Address Info
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on,
+                          size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Expanded(
+                          child: Text(address,
+                              style: const TextStyle(fontSize: 12))),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.payment, size: 16, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text("Method: $paymentMethod",
+                          style: const TextStyle(fontSize: 12)),
+                      const Spacer(),
+                      Text("Shipping: ₱${shippingFee.toStringAsFixed(0)}",
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.bold))
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Action Buttons
+            if (widget.status == 'pending')
+              Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
@@ -377,23 +380,23 @@ class _OrderCardState extends State<_OrderCard> {
                   ),
                 ],
               ),
-            ),
 
-          if (widget.status == 'confirmed')
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _updateStatus(context, 'completed'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700]),
-                  child: const Text("Mark as Delivered / Picked Up",
-                      style: TextStyle(color: Colors.white)),
+            if (widget.status == 'confirmed')
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => _updateStatus(context, 'completed'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700]),
+                    child: const Text("Mark as Delivered / Picked Up",
+                        style: TextStyle(color: Colors.white)),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

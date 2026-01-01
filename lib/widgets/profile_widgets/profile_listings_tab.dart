@@ -1,18 +1,22 @@
-// lib/widgets/profile_widgets/profile_listings_tab.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../models/livestock_model.dart';
-import 'package:agribenta/screens/edit_livestock_screen.dart';
+
+// We don't need to import EditLivestockScreen here anymore
+// because the parent (ProfileScreen) handles the navigation now.
 
 class ProfileListingsTab extends StatefulWidget {
   final List<Livestock> listings;
   final VoidCallback onAddListing;
+  // 1. ADDED: This callback to accept the function from ProfileScreen
+  final Function(Livestock) onEditListing;
 
   const ProfileListingsTab({
     super.key,
     required this.listings,
     required this.onAddListing,
+    // 2. ADDED: Required in constructor
+    required this.onEditListing,
   });
 
   @override
@@ -235,15 +239,8 @@ class _ProfileListingsTabState extends State<ProfileListingsTab>
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit, color: brandGreen),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        EditLivestockScreen(livestock: item),
-                                  ),
-                                );
-                              },
+                              // 3. UPDATED: Uses the callback from parent
+                              onPressed: () => widget.onEditListing(item),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
@@ -260,16 +257,13 @@ class _ProfileListingsTabState extends State<ProfileListingsTab>
                                           child: const Text("Cancel")),
                                       TextButton(
                                         onPressed: () async {
-                                          // Close dialog first
                                           Navigator.pop(ctx);
-
                                           try {
                                             await FirebaseFirestore.instance
                                                 .collection('livestock')
                                                 .doc(item.id)
                                                 .delete();
 
-                                            // Show success toast (use context from outer scope or ScaffoldMessenger global)
                                             if (mounted) {
                                               ScaffoldMessenger.of(context)
                                                   .showSnackBar(

@@ -2,6 +2,7 @@ import 'package:agribenta/screens/checkout_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/cart_manager.dart';
+import '../models/cart_model.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -11,28 +12,29 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  // State variables
   bool _isSelectionMode = false;
   final Set<String> _selectedItemIds = {};
 
-  // Theme Colors
+  // Stream caching (from previous fix)
+  Stream<List<CartItem>>? _cartStream;
+
   final Color textDark = const Color(0xFF1B4332);
   final Color brandGreen = const Color(0xFF52B788);
   final Color bgCream = const Color(0xFFF9F6F0);
 
-  // --- ACTIONS ---
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cartStream ??= Provider.of<CartManager>(context, listen: false).cartStream;
+  }
 
-  // Enter selection mode
   void _enterSelectionMode(String? initialItemId) {
     setState(() {
       _isSelectionMode = true;
-      if (initialItemId != null) {
-        _selectedItemIds.add(initialItemId);
-      }
+      if (initialItemId != null) _selectedItemIds.add(initialItemId);
     });
   }
 
-  // Exit selection mode
   void _exitSelectionMode() {
     setState(() {
       _isSelectionMode = false;
@@ -40,429 +42,216 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  // Toggle individual item
   void _toggleItem(String itemId) {
     setState(() {
       if (_selectedItemIds.contains(itemId)) {
         _selectedItemIds.remove(itemId);
-        // Optional: Exit mode if last item deselected
-        if (_selectedItemIds.isEmpty) {
-          // _isSelectionMode = false; // Uncomment if you want auto-exit
-        }
+        if (_selectedItemIds.isEmpty) _isSelectionMode = false;
       } else {
         _selectedItemIds.add(itemId);
       }
     });
   }
 
-  // Bulk Remove Action
-  Future<void> _deleteSelected(CartManager cartManager) async {
-    if (_selectedItemIds.isEmpty) return;
-
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Remove Items?"),
-        content:
-            Text("Remove ${_selectedItemIds.length} items from your cart?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Remove", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete == true) {
-      for (var id in _selectedItemIds) {
-        await cartManager.removeFromCart(id);
-      }
-      _exitSelectionMode();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text("Items removed")));
-      }
+  Future<void> _deleteSelected(CartManager manager) async {
+    for (var id in _selectedItemIds) {
+      await manager.removeItem(id);
     }
+    _exitSelectionMode();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<CartManager>(
-      builder: (context, cartManager, child) {
-        return StreamBuilder<List<CartItem>>(
-          stream: cartManager.cartStream,
-          builder: (context, snapshot) {
-            // 1. Handle Loading & Empty States
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Scaffold(
-                  backgroundColor: bgCream,
-                  body: Center(
-                      child: CircularProgressIndicator(color: brandGreen)));
-            }
-            final cartItems = snapshot.data ?? [];
-            if (cartItems.isEmpty) return _buildEmptyState(context);
+    final cartManager = Provider.of<CartManager>(context);
 
-            // 2. Calculate Totals
-            // A. Selection Mode Total
-            final selectedItemsList = cartItems
-                .where((item) => _selectedItemIds.contains(item.id))
-                .toList();
-            final totalSelectedPrice = selectedItemsList.fold<double>(
-                0, (sum, item) => sum + item.totalPrice);
-
-            // B. Normal Mode Total (All Items)
-            final totalAllPrice =
-                cartItems.fold<double>(0, (sum, item) => sum + item.totalPrice);
-
-            return WillPopScope(
-              // Pressing back while in selection mode should just exit mode
-              onWillPop: () async {
-                if (_isSelectionMode) {
-                  _exitSelectionMode();
-                  return false;
-                }
-                return true;
-              },
-              child: Scaffold(
-                backgroundColor: bgCream,
-
-                // --- APP BAR ---
-                appBar: AppBar(
-                  backgroundColor: bgCream,
-                  elevation: 0,
-                  centerTitle: true,
-                  leading: _isSelectionMode
-                      ? IconButton(
-                          icon: const Icon(Icons.close, color: Colors.black),
-                          onPressed: _exitSelectionMode,
-                        )
-                      : IconButton(
-                          icon: Icon(Icons.arrow_back_ios, color: textDark),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                  title: Text(
-                    _isSelectionMode
-                        ? "${_selectedItemIds.length} Selected"
-                        : "My Cart",
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: textDark),
-                  ),
-                  actions: [
-                    if (!_isSelectionMode)
-                      TextButton(
-                        onPressed: () => _enterSelectionMode(null),
-                        child: Text("Select",
-                            style: TextStyle(
-                                color: brandGreen,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16)),
-                      ),
-                  ],
-                ),
-
-                // --- BODY ---
-                body: Column(
-                  children: [
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(20),
-                        itemCount: cartItems.length,
-                        itemBuilder: (context, index) {
-                          final cartItem = cartItems[index];
-                          final isSelected =
-                              _selectedItemIds.contains(cartItem.id);
-
-                          return _buildCartItem(
-                            cartItem: cartItem,
-                            cartManager: cartManager,
-                            isSelected: isSelected,
-                            isSelectionMode: _isSelectionMode,
-                          );
-                        },
-                      ),
-                    ),
-
-                    // --- BOTTOM ACTION BAR ---
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: const BoxDecoration(
-                          color: Colors.white,
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(20)),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 10,
-                                offset: Offset(0, -5))
-                          ]),
-                      child: SafeArea(
-                        child: _isSelectionMode
-                            ? _buildSelectionModeBottomBar(
-                                cartManager, selectedItemsList)
-                            : _buildNormalModeBottomBar(
-                                cartItems, totalAllPrice),
-                      ),
-                    ),
-                  ],
-                ),
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isSelectionMode) {
+          _exitSelectionMode();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: bgCream,
+        appBar: AppBar(
+          backgroundColor: bgCream,
+          elevation: 0,
+          leading: _isSelectionMode
+              ? IconButton(
+                  icon: const Icon(Icons.close, color: Colors.black),
+                  onPressed: _exitSelectionMode)
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+                  onPressed: () => Navigator.pop(context)),
+          title: Text(
+            _isSelectionMode
+                ? "${_selectedItemIds.length} Selected"
+                : "My Cart",
+            style: TextStyle(
+                color: textDark, fontWeight: FontWeight.bold, fontSize: 20),
+          ),
+          centerTitle: true,
+          actions: [
+            if (_isSelectionMode)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () => _deleteSelected(cartManager),
               ),
+          ],
+        ),
+        body: StreamBuilder<List<CartItem>>(
+          stream: _cartStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                  child: CircularProgressIndicator(color: brandGreen));
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return _buildEmptyState(context);
+            }
+
+            final cartItems = snapshot.data!;
+
+            // --- FIX START: Filter items based on selection ---
+            List<CartItem> checkoutItems;
+
+            if (_isSelectionMode) {
+              // If selecting, only include selected items
+              checkoutItems = cartItems
+                  .where((item) => _selectedItemIds.contains(item.id))
+                  .toList();
+            } else {
+              // If not selecting, include ALL items (Default behavior)
+              checkoutItems = cartItems;
+            }
+
+            // Calculate Total based on the FILTERED checkout list
+            double totalPrice = 0;
+            for (var item in checkoutItems) {
+              totalPrice += item.selectedPrice * item.quantity;
+            }
+            // --- FIX END ---
+
+            return Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: cartItems.length, // List shows ALL items
+                    itemBuilder: (context, index) {
+                      final item = cartItems[index];
+                      return _buildCartItem(item, cartManager);
+                    },
+                  ),
+                ),
+                // Pass filtered items and correct total to checkout bar
+                _buildCheckoutBar(totalPrice, checkoutItems),
+              ],
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 
-  // --- WIDGETS ---
+  Widget _buildCartItem(CartItem item, CartManager manager) {
+    bool isSelected = _selectedItemIds.contains(item.id);
 
-  // 1. The Cart Item Card
-  Widget _buildCartItem({
-    required CartItem cartItem,
-    required CartManager cartManager,
-    required bool isSelected,
-    required bool isSelectionMode,
-  }) {
     return GestureDetector(
-      // Logic:
-      // - Normal Mode: Long press -> Enter Selection Mode
-      // - Selection Mode: Tap -> Toggle Selection
-      onLongPress: () {
-        if (!isSelectionMode) {
-          _enterSelectionMode(cartItem.id);
-        }
-      },
+      onLongPress: () => _enterSelectionMode(item.id),
       onTap: () {
-        if (isSelectionMode) {
-          _toggleItem(cartItem.id);
-        }
+        if (_isSelectionMode) _toggleItem(item.id);
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-            color: isSelected ? brandGreen.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-                color: isSelected ? brandGreen : Colors.transparent,
-                width: 1.5),
-            boxShadow: const [
-              BoxShadow(
-                  color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))
-            ]),
+          color: isSelected ? brandGreen.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: isSelected ? Border.all(color: brandGreen, width: 2) : null,
+          boxShadow: [
+            BoxShadow(
+                color: textDark.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4))
+          ],
+        ),
         child: Row(
           children: [
-            // Checkbox (Only visible in Selection Mode)
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: isSelectionMode ? 32 : 0,
-              curve: Curves.easeInOut,
-              child: isSelectionMode
-                  ? Checkbox(
-                      value: isSelected,
-                      activeColor: brandGreen,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4)),
-                      onChanged: (val) => _toggleItem(cartItem.id),
-                    )
-                  : null,
-            ),
-
             // Image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(cartItem.livestock.imagePath,
-                  width: 80, height: 80, fit: BoxFit.cover),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: Colors.grey[200],
+                image: item.livestock.imagePath.isNotEmpty
+                    ? DecorationImage(
+                        image: NetworkImage(item.livestock.imagePath),
+                        fit: BoxFit.cover)
+                    : null,
+              ),
+              child: item.livestock.imagePath.isEmpty
+                  ? const Icon(Icons.image_not_supported)
+                  : null,
             ),
             const SizedBox(width: 16),
 
-            // Info
+            // Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(cartItem.livestock.name,
+                  Text(item.livestock.name,
                       style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: textDark),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  Text('₱${cartItem.livestock.price.toStringAsFixed(0)}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                  const SizedBox(height: 8),
-
-                  // Qty Controls (Disable in selection mode to prevent conflicts)
-                  IgnorePointer(
-                    ignoring: isSelectionMode,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(children: [
-                          _quantityButton(Icons.remove, () {
-                            if (cartItem.quantity > 1)
-                              cartManager.updateQuantity(
-                                  cartItem.id, cartItem.quantity - 1);
-                          }),
-                          Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 12),
-                              child: Text('${cartItem.quantity}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold))),
-                          _quantityButton(
-                              Icons.add,
-                              () => cartManager.updateQuantity(
-                                  cartItem.id, cartItem.quantity + 1)),
-                        ]),
-                        Text('₱${cartItem.totalPrice.toStringAsFixed(0)}',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: brandGreen)),
-                      ],
+                          color: textDark)),
+                  if (item.selectedWeight.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text("Size: ${item.selectedWeight}",
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600])),
                     ),
-                  ),
+                  const SizedBox(height: 8),
+                  Text("₱${item.selectedPrice.toStringAsFixed(0)}",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: brandGreen)),
                 ],
               ),
             ),
+
+            // Quantity Controls
+            Column(
+              children: [
+                _quantityButton(Icons.remove, () {
+                  if (item.quantity > 1) {
+                    manager.updateQuantity(item.id, item.quantity - 1);
+                  } else {
+                    manager.removeItem(item.id);
+                  }
+                }),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    "${item.quantity}",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                _quantityButton(Icons.add, () {
+                  manager.updateQuantity(item.id, item.quantity + 1);
+                }),
+              ],
+            )
           ],
         ),
       ),
-    );
-  }
-
-  // 2. Bottom Bar: Normal Mode (Checkout All)
-  Widget _buildNormalModeBottomBar(List<CartItem> allItems, double total) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Total",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text('₱${total.toStringAsFixed(0)}',
-                style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: brandGreen)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 55,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CheckoutScreen(
-                    items: allItems,
-                    totalAmount: total,
-                  ),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: brandGreen,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12))),
-            child: const Text("Check Out All",
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white)),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // 3. Bottom Bar: Selection Mode (Remove OR Checkout Selected)
-  Widget _buildSelectionModeBottomBar(
-      CartManager cartManager, List<CartItem> selectedItems) {
-    final hasSelection = selectedItems.isNotEmpty;
-    final totalSelected =
-        selectedItems.fold<double>(0, (sum, item) => sum + item.totalPrice);
-
-    return Row(
-      children: [
-        // Remove Button
-        Expanded(
-          flex: 1,
-          child: SizedBox(
-            height: 55,
-            child: OutlinedButton(
-              onPressed:
-                  hasSelection ? () => _deleteSelected(cartManager) : null,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.redAccent),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.delete_outline, color: Colors.redAccent),
-                  Text("Remove",
-                      style: TextStyle(color: Colors.redAccent, fontSize: 12)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-
-        // Checkout Selected Button
-        Expanded(
-          flex: 2,
-          child: SizedBox(
-            height: 55,
-            child: ElevatedButton(
-              onPressed: hasSelection
-                  ? () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => CheckoutScreen(
-                            items: selectedItems,
-                            totalAmount: totalSelected,
-                          ),
-                        ),
-                      );
-                    }
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: brandGreen,
-                disabledBackgroundColor: Colors.grey[300],
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("Check Out (${selectedItems.length})",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.white)),
-                  if (hasSelection)
-                    Text("₱${totalSelected.toStringAsFixed(0)}",
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.white70)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -480,29 +269,83 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
-    return Scaffold(
-      backgroundColor: bgCream,
-      appBar: AppBar(
-          backgroundColor: bgCream,
-          elevation: 0,
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-              onPressed: () => Navigator.pop(context))),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildCheckoutBar(double total, List<CartItem> items) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 20,
+              offset: const Offset(0, -5))
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
           children: [
-            Icon(Icons.shopping_cart_outlined,
-                size: 100, color: Colors.grey[400]),
-            const SizedBox(height: 24),
-            Text("Your cart is empty",
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[600])),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Total Price",
+                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+                Text("₱${total.toStringAsFixed(0)}",
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textDark)),
+              ],
+            ),
+            const Spacer(),
+            ElevatedButton(
+              onPressed: () {
+                // Prevent checkout if selection mode is active but list is empty
+                if (items.isEmpty) return;
+
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) =>
+                            CheckoutScreen(items: items, totalAmount: total)));
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: brandGreen,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16))),
+              child: const Text("Checkout",
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white)),
+            )
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shopping_cart_outlined,
+              size: 100, color: Colors.grey[400]),
+          const SizedBox(height: 24),
+          Text("Your cart is empty",
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Start Shopping",
+                style: TextStyle(fontSize: 16, color: brandGreen)),
+          )
+        ],
       ),
     );
   }

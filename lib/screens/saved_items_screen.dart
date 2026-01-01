@@ -123,13 +123,10 @@ class SavedItemsScreen extends StatelessWidget {
                         // C. Success State
                         try {
                           final doc = itemSnapshot.data!;
-                          final data = doc.data() as Map<String, dynamic>;
 
-                          // Essential ID Injection
-                          data['id'] = doc.id;
-
-                          // Use the safe fromJson constructor
-                          final livestock = Livestock.fromJson(data);
+                          // --- FIX: Use fromSnapshot instead of fromJson ---
+                          final livestock = Livestock.fromSnapshot(doc);
+                          // -----------------------------------------------
 
                           return LivestockCard(
                             livestock: livestock,
@@ -169,8 +166,8 @@ class SavedItemsScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE8F5E9),
               shape: BoxShape.circle,
             ),
             child: const Icon(

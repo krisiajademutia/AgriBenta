@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/livestock_model.dart';
+import '../models/cart_model.dart'; // <--- IMPORT THE MODEL
 
 class CartManager extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -12,88 +13,107 @@ class CartManager extends ChangeNotifier {
 
   bool isOwnListing(String sellerId) => currentUser?.uid == sellerId;
 
-  // Add or update item with quantity
-  Future<bool> addToCart(Livestock livestock, BuildContext context,
-      {int quantity = 1}) async {
+  // --- 1. UPDATED ADD TO CART ---
+  Future<bool> addToCart(
+    Livestock livestock,
+    BuildContext context, {
+    int quantity = 1,
+    String variantWeight = '',
+    double variantPrice = 0.0,
+  }) async {
     if (!isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please log in to add to cart")),
-      );
-      Navigator.pushNamed(context, '/login');
+          const SnackBar(content: Text("Please log in to add to cart")));
       return false;
     }
 
     if (isOwnListing(livestock.sellerId)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("You cannot add your own listing to cart")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("You cannot add your own listing to cart")));
       return false;
     }
 
     try {
+      // LOGIC: Create a unique ID for this specific variant
+      // Example: if item is "Feed" and weight is "50kg", ID becomes "FeedID_50kg"
+      String cartDocId = livestock.id;
+      if (variantWeight.isNotEmpty) {
+        cartDocId = "${livestock.id}_${variantWeight.replaceAll(' ', '')}";
+      }
+
       final cartRef = _firestore
           .collection('users')
           .doc(currentUser!.uid)
           .collection('cart')
-          .doc(livestock.id);
+          .doc(cartDocId); // <--- USE UNIQUE ID
 
       final doc = await cartRef.get();
 
+      // Determine final values
+      String finalWeight =
+          variantWeight.isNotEmpty ? variantWeight : livestock.weight;
+      double finalPrice = variantPrice > 0 ? variantPrice : livestock.price;
+
       if (doc.exists) {
-        // Update quantity if already in cart
-        final currentQty = doc.data()?['quantity'] ?? 0;
-        await cartRef.update({'quantity': currentQty + quantity});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Cart updated (+1)")),
-        );
+        // If exact item + weight exists, just add to quantity
+        await cartRef.update({
+          'quantity': FieldValue.increment(quantity),
+        });
       } else {
-        // Add new item
+        // New Item entry
         await cartRef.set({
           'livestockId': livestock.id,
           'sellerId': livestock.sellerId,
-          'name': livestock.name,
-          'price': livestock.price,
-          'imagePath': livestock.imagePath,
-          'quantity': quantity,
-          'shippingFee':
-              livestock.shippingFee, // Store this for calculations later
+          'quantity': quantity, // Correctly mapped to quantity
+          'weight': finalWeight, // Correctly mapped to weight
+          'price': finalPrice,
           'addedAt': FieldValue.serverTimestamp(),
+          'name': livestock.name,
+          'imagePath': livestock.imagePath,
+          'category': livestock.category,
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Added to cart")),
-        );
       }
-      notifyListeners();
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("Added to cart!"),
+        backgroundColor: Color(0xFF52B788),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ));
       return true;
     } catch (e) {
-      debugPrint("Cart Error: $e");
+      debugPrint(
+        "Add Cart Error: $e",
+      );
       return false;
     }
   }
 
-  Future<void> removeFromCart(String livestockId) async {
+  // Remove item
+  Future<void> removeItem(String itemId) async {
     if (!isLoggedIn) return;
     await _firestore
         .collection('users')
         .doc(currentUser!.uid)
         .collection('cart')
-        .doc(livestockId)
+        .doc(itemId)
         .delete();
     notifyListeners();
   }
 
-  Future<void> updateQuantity(String livestockId, int newQty) async {
+  // Update quantity
+  Future<void> updateQuantity(String itemId, int newQty) async {
     if (!isLoggedIn || newQty < 1) return;
     await _firestore
         .collection('users')
         .doc(currentUser!.uid)
         .collection('cart')
-        .doc(livestockId)
+        .doc(itemId)
         .update({'quantity': newQty});
     notifyListeners();
   }
 
+// --- 2. UPDATED STREAM (To read the weight back) ---
   Stream<List<CartItem>> get cartStream {
     if (!isLoggedIn) return Stream.value([]);
 
@@ -103,73 +123,67 @@ class CartManager extends ChangeNotifier {
         .collection('cart')
         .orderBy('addedAt', descending: true)
         .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
+        .asyncMap((snapshot) async {
+      List<CartItem> items = [];
 
-        // --- CONSTRUCT CART ITEM CORRECTLY ---
-        return CartItem(
-          id: doc.id,
-          livestock: Livestock(
-            id: data['livestockId'] ?? doc.id,
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final String livestockId = data['livestockId']; // fetch original ID
+
+        // Load Details
+        double savedPrice = (data['price'] as num?)?.toDouble() ?? 0.0;
+        String savedWeight = data['weight'] ?? '';
+        int savedQty = (data['quantity'] as num?)?.toInt() ?? 1;
+
+        // Fetch latest livestock details
+        final livestockDoc =
+            await _firestore.collection('livestock').doc(livestockId).get();
+
+        Livestock livestock;
+        if (livestockDoc.exists) {
+          livestock = Livestock.fromSnapshot(livestockDoc);
+        } else {
+          // FIXED: Manually create the empty object since .empty() does not exist
+          livestock = Livestock(
+            id: livestockId,
             sellerId: data['sellerId'] ?? '',
-            name: data['name'] ?? 'Unknown',
-            price: (data['price'] as num?)?.toDouble() ?? 0.0,
-            shippingFee: (data['shippingFee'] as num?)?.toDouble() ?? 0.0,
+            name: data['name'] ?? 'Unknown Item',
+            category: data['category'] ?? 'General',
+            price: savedPrice,
+            shippingFee: 0.0,
+            age: '',
+            weight: savedWeight,
+            location: '',
+            description: 'This item is no longer available.',
             imagePath: data['imagePath'] ?? '',
-            imagePaths: [data['imagePath'] ?? ''],
-            category: 'Unknown',
-            age: 'N/A',
-            weight: 'N/A',
-            location: 'N/A',
-            description: '',
+            imagePaths: [],
             postedAt: Timestamp.now(),
-            status: 'active',
-            quantity: 1,
-          ),
-          quantity: (data['quantity'] as num?)?.toInt() ?? 1,
-        );
-      }).toList();
+            status: 'unavailable',
+            quantity: 0,
+            variants: [],
+          );
+        }
+
+        items.add(CartItem(
+          id: doc.id, // This is the cartDocId (e.g., ID_50kg)
+          livestock: livestock,
+          quantity: savedQty,
+          selectedWeight: savedWeight, // Pass weight to UI
+          selectedPrice: savedPrice > 0 ? savedPrice : livestock.price,
+        ));
+      }
+      return items;
     });
   }
 
+  // Simple stream for badge count
   Stream<int> get cartItemCountStream {
     if (!isLoggedIn) return Stream.value(0);
-
     return _firestore
         .collection('users')
         .doc(currentUser!.uid)
         .collection('cart')
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
-  }
-}
-
-// ---------------------------------------------------------
-// UPDATED CART ITEM CLASS (This fixes your error)
-// ---------------------------------------------------------
-class CartItem {
-  final String id; // Document ID in 'cart' collection
-  final Livestock livestock;
-  int quantity;
-
-  CartItem({
-    required this.id,
-    required this.livestock,
-    this.quantity = 1,
-  });
-
-  double get totalPrice => livestock.price * quantity;
-
-  // --- THIS WAS MISSING ---
-  Map<String, dynamic> toMap() {
-    return {
-      'livestockId': livestock.id,
-      'name': livestock.name,
-      'price': livestock.price,
-      'quantity': quantity,
-      'imagePath': livestock.imagePath,
-      'sellerId': livestock.sellerId,
-    };
   }
 }

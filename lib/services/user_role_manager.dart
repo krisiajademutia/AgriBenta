@@ -3,66 +3,84 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class UserRoleManager extends ChangeNotifier {
-  String _role = 'buyer'; // default
-  bool _hasStartedSelling = false;
+  String _userRole = 'buyer';
+  bool _isSeller = false;
+  bool _hasTappedStartSelling = false;
 
-  String get role => _role;
-  bool get isSeller => _role == 'seller';
-  bool get hasTappedStartSelling => _hasStartedSelling;
+  String get userRole => _userRole;
+  bool get isSeller => _isSeller;
+  bool get hasTappedStartSelling => _hasTappedStartSelling;
 
   UserRoleManager() {
-    _loadRole(); // ← CALL IN CONSTRUCTOR
+    // FIX: Listen to auth changes.
+    // This ensures we fetch the role automatically whenever the app restarts or user logs in.
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        fetchUserRole();
+      } else {
+        // Reset state if logged out
+        _userRole = 'buyer';
+        _isSeller = false;
+        _hasTappedStartSelling = false;
+        notifyListeners();
+      }
+    });
   }
 
-  Future<void> _loadRole() async {
+  Future<void> fetchUserRole() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user != null) {
+      try {
+        DocumentSnapshot doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+        if (doc.exists && doc.data() != null) {
+          final data = doc.data() as Map<String, dynamic>;
+          _userRole = data['role'] ?? 'buyer';
 
-      final data = doc.data() ?? {};
-      final savedRole = data['role'] as String?;
-
-      if (savedRole == 'seller') {
-        _role = 'seller';
-        _hasStartedSelling = true;
-      } else {
-        _role = 'buyer';
-        _hasStartedSelling = false;
+          // If backend says they are a seller, unlock the UI
+          if (_userRole == 'seller') {
+            _hasTappedStartSelling = true;
+            // Optional: If you want them to land on Seller Tab by default on restart:
+            // _isSeller = true;
+          }
+        }
+      } catch (e) {
+        debugPrint("Error fetching user role: $e");
       }
-    } catch (e) {
-      _role = 'buyer';
-      _hasStartedSelling = false;
+      notifyListeners();
     }
+  }
 
-    notifyListeners(); // ← THIS WAS MISSING BEFORE!
+  void switchToBuyer() {
+    _isSeller = false;
+    notifyListeners();
+  }
+
+  void switchToSeller() {
+    _isSeller = true;
+    notifyListeners();
   }
 
   Future<void> startSelling() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({'role': 'seller'}, SetOptions(merge: true));
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({'role': 'seller'});
 
-    _role = 'seller';
-    _hasStartedSelling = true;
-    notifyListeners();
-  }
+      _userRole = 'seller';
+      _hasTappedStartSelling = true;
+      _isSeller = true;
 
-  Future<void> switchToBuyer() async {
-    _role = 'buyer';
-    notifyListeners();
-  }
-
-  Future<void> switchToSeller() async {
-    _role = 'seller';
-    notifyListeners();
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error updating role: $e");
+    }
   }
 }

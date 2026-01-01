@@ -24,12 +24,11 @@ class LivestockManager extends ChangeNotifier {
   String? _ageMonths;
   String? _weight;
 
-  // NEW: Description State
+  // Description State
   String? _description;
   int _quantity = 1;
 
   // Image and Loading State
-  //List<File> _tempImageFiles = [];
   bool _isSaving = false;
   bool _isLoadingLocation = false;
 
@@ -50,20 +49,18 @@ class LivestockManager extends ChangeNotifier {
   String? get ageMonths => _ageMonths;
   String? get weight => _weight;
   String? get description => _description;
-  //List<File> get tempImageFiles => _tempImageFiles;
   bool get isSaving => _isSaving;
   double? get shippingFee => _shippingFee;
   bool get isLoadingLocation => _isLoadingLocation;
   List<String> get availableCategories => _availableCategories;
   bool get isLoadingCategories => _isLoadingCategories;
-  final int _maxImages = 10; // optional, you can reuse
+
+  final int _maxImages = 10;
   List<File> newImages = [];
   List<String> existingUrls = [];
   bool isLoading = false;
   final ImagePicker _picker = ImagePicker();
   int get quantity => _quantity;
-
-  //String category = '';
 
   // --- Setters ---
   void setName(String value) {
@@ -120,16 +117,7 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /*void addImageFile(File file) {
-    _tempImageFiles.add(file);
-    notifyListeners();
-  }
-
-  void removeImageFile(File file) {
-    _tempImageFiles.remove(file);
-    notifyListeners();
-  }*/
-
+  // --- Initialize for Edit Mode ---
   void initForEdit(Livestock livestock) {
     _name = livestock.name;
     _category = livestock.category;
@@ -177,7 +165,7 @@ class LivestockManager extends ChangeNotifier {
     existingUrls.clear();
   }
 
-  // --- Dynamic Category Fetching (UNCHANGED) ---
+  // --- Dynamic Category Fetching ---
   Future<void> fetchCategories() async {
     _isLoadingCategories = true;
     notifyListeners();
@@ -203,7 +191,7 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Location Logic  ---
+  // --- Location Logic ---
   Future<String> _getAddressFromCoordinates(Position position) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -258,7 +246,8 @@ class LivestockManager extends ChangeNotifier {
     }
   }
 
-  Future<bool> postListing() async {
+  // --- POST LISTING ---
+  Future<bool> postListing({List<Map<String, dynamic>>? variants}) async {
     if (_auth.currentUser == null || _isSaving) return false;
 
     // Validation
@@ -284,7 +273,6 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Upload images to imgbb
       List<String> imageUrls =
           await ImgBBService.uploadLivestockImages(newImages) ?? [];
 
@@ -293,10 +281,8 @@ class LivestockManager extends ChangeNotifier {
         return false;
       }
 
-      // 2. Create document
       final newDocRef = _firestore.collection('livestock').doc();
 
-      // Format Age
       final years = isYearsEntered
           ? '${_ageYears} year${_ageYears == '1' ? '' : 's'}'
           : '';
@@ -328,13 +314,12 @@ class LivestockManager extends ChangeNotifier {
         'imagePaths': imageUrls,
         'sellerId': _auth.currentUser!.uid,
         'postedAt': FieldValue.serverTimestamp(),
-        'status': 'active', // Ensure status is set
+        'status': 'active',
+        'variants': variants ?? [],
       };
 
-      // 3. Save to Firestore
       await newDocRef.set(listingData);
 
-      // 4. Cleanup
       _resetState();
       return true;
     } catch (e) {
@@ -346,6 +331,18 @@ class LivestockManager extends ChangeNotifier {
     }
   }
 
+  // --- IMAGE HELPERS ---
+
+  // 1. ADDED: Single Image Picker (Used by Edit Screen)
+  Future<File?> pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      return File(image.path);
+    }
+    return null;
+  }
+
+  // Multi Image Picker (Existing)
   Future<void> pickImages() async {
     final List<XFile>? picked = await _picker.pickMultiImage();
     if (picked == null) return;
@@ -356,10 +353,71 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- 2. ADDED: UPDATE LIVESTOCK (Used by Edit Screen) ---
+  Future<void> updateLivestock({
+    required String docId,
+    required String name,
+    required String category,
+    required double price,
+    required String weight,
+    required int quantity,
+    required String description,
+    required String location,
+    required String age,
+    required double shippingFee,
+    required List<String> existingUrls,
+    required List<File> newImages,
+    required List<LivestockVariant> variants,
+  }) async {
+    _isSaving = true;
+    notifyListeners();
+
+    try {
+      // A. Upload New Images (if any)
+      List<String> allUrls = List.from(existingUrls);
+
+      if (newImages.isNotEmpty) {
+        final uploaded = await ImgBBService.uploadLivestockImages(newImages);
+        if (uploaded != null) {
+          allUrls.addAll(uploaded);
+        }
+      }
+
+      // B. Convert Variants to Map List
+      final variantsList = variants.map((v) => v.toMap()).toList();
+
+      // C. Update Firestore
+      await _firestore.collection('livestock').doc(docId).update({
+        'name': name,
+        'category': category,
+        'price': price, // Calculated lowest price
+        'weight': weight, // Calculated or default weight
+        'quantity': quantity, // Total quantity
+        'description': description,
+        'location': location,
+        'age': age,
+        'shippingFee': shippingFee,
+        'imagePaths': allUrls,
+        'imagePath': allUrls.isNotEmpty ? allUrls.first : '',
+        'variants': variantsList,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      _isSaving = false;
+      notifyListeners();
+    } catch (e) {
+      _isSaving = false;
+      notifyListeners();
+      throw e; // Pass error back to screen so it can show snackbar
+    }
+  }
+
+  // --- OLD SAVE EDIT (Kept for compatibility if used elsewhere) ---
   Future<bool> saveEdit(
     Livestock livestock,
-    BuildContext context,
-  ) async {
+    BuildContext context, {
+    List<Map<String, dynamic>>? updatedVariants,
+  }) async {
     if (existingUrls.isEmpty && newImages.isEmpty) {
       _toast(context, "At least one photo is required");
       return false;
@@ -369,7 +427,7 @@ class LivestockManager extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ---------- AGE LOGIC ----------
+      // Age Logic
       final bool isYearsEntered =
           _ageYears != null && _ageYears!.trim().isNotEmpty;
       final bool isMonthsEntered =
@@ -390,7 +448,6 @@ class LivestockManager extends ChangeNotifier {
             : (years.isNotEmpty ? years : months);
       }
 
-      // ---------- IMAGE LOGIC ----------
       List<String> allUrls = List<String>.from(existingUrls);
 
       if (newImages.isNotEmpty) {
@@ -400,26 +457,28 @@ class LivestockManager extends ChangeNotifier {
           _toast(context, "Image upload failed");
           return false;
         }
-
         allUrls.addAll(uploaded);
       }
 
-      // ---------- FIRESTORE UPDATE ----------
+      double finalPrice = _price ?? livestock.price;
+      int finalQty = _quantity;
+
       await FirebaseFirestore.instance
           .collection('livestock')
           .doc(livestock.id)
           .update({
         'name': _name,
         'category': _category,
-        'price': _price,
+        'price': finalPrice,
         'shippingFee': _shippingFee,
-        'quantity': _quantity,
+        'quantity': finalQty,
         'age': ageString,
         'weight': _weight,
         'location': _location,
         'description': _description,
         'imagePath': allUrls.first,
         'imagePaths': allUrls,
+        if (updatedVariants != null) 'variants': updatedVariants,
       });
 
       return true;

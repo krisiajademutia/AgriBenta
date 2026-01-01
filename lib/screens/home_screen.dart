@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // <--- Added
+import 'package:firebase_auth/firebase_auth.dart'; // <--- Added
 import 'tabs/marketplace_tab.dart';
 import 'tabs/message_tab.dart';
 import 'tabs/orders_tab.dart';
@@ -38,8 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
         height: 70,
         padding: EdgeInsets.zero,
         child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.spaceAround, // Evenly spaces the 4 icons
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildNavItem(
                 0, Icons.storefront_outlined, Icons.storefront_rounded, "Home"),
@@ -60,6 +61,76 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = _currentIndex == index;
     const Color brandGreen = Color(0xFF52B788);
 
+    // --- 1. BADGE LOGIC ---
+    // We only want to show the badge for the "Message" tab (index 1)
+    Widget iconWidget = Icon(
+      isSelected ? iconOn : iconOff,
+      color: isSelected ? brandGreen : Colors.grey.shade400,
+      size: 26,
+    );
+
+    if (index == 1) {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        // Wrap the icon in a StreamBuilder to listen for unread messages
+        iconWidget = StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('chats')
+              .where('participants', arrayContains: currentUser.uid)
+              .snapshots(),
+          builder: (context, snapshot) {
+            int unreadTotal = 0;
+
+            if (snapshot.hasData) {
+              for (var doc in snapshot.data!.docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                final unreadCounts =
+                    data['unreadCounts'] as Map<String, dynamic>?;
+                // Add up the user's unread count from each chat
+                unreadTotal += (unreadCounts?[currentUser.uid] ?? 0) as int;
+              }
+            }
+
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  isSelected ? iconOn : iconOff,
+                  color: isSelected ? brandGreen : Colors.grey.shade400,
+                  size: 26,
+                ),
+                if (unreadTotal > 0)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Colors.red, // Badge Color
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 14,
+                        minHeight: 14,
+                      ),
+                      child: Text(
+                        unreadTotal > 9 ? '9+' : '$unreadTotal',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9, // Small font for the badge
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      }
+    }
+
     return InkWell(
       onTap: () => setState(() => _currentIndex = index),
       borderRadius: BorderRadius.circular(30),
@@ -69,11 +140,8 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isSelected ? iconOn : iconOff,
-              color: isSelected ? brandGreen : Colors.grey.shade400,
-              size: 26,
-            ),
+            // --- 2. USE THE MODIFIED ICON WIDGET ---
+            iconWidget,
             const SizedBox(height: 4),
             Text(
               label,

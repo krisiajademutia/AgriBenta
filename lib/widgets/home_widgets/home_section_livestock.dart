@@ -30,7 +30,7 @@ class SectionLivestock extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                "Recent Listings",
+                "Available Livestock",
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,

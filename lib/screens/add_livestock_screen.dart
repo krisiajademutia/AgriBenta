@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:agribenta/services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,15 +15,16 @@ class AddLivestockScreen extends StatefulWidget {
 class _AddLivestockScreenState extends State<AddLivestockScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
+  // --- CONTROLLERS ---
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _priceController = TextEditingController();
   final TextEditingController _shippingController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
-  final TextEditingController _weightController = TextEditingController();
-  // _locationController REMOVED -> Replaced by Dropdowns
   final TextEditingController _descController = TextEditingController();
-  final TextEditingController _quantityController = TextEditingController();
+  // Note: Price, Weight, and Quantity controllers are now dynamic (see below)
+
+  // --- NEW: VARIANT CONTROLLERS ---
+  // Each item in this list represents one row: {weight, price, qty}
+  List<Map<String, TextEditingController>> _variantControllers = [];
 
   // --- LOCATION STATE ---
   bool _isLocationLoaded = false;
@@ -37,7 +39,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     'goat': Icons.grass,
     'pig': Icons.savings,
     'chicken': Icons.egg,
-    'duck': Icons.water,
+    'duck': Icons.water, // Fixed icon name
     'other': Icons.grid_view,
   };
 
@@ -52,11 +54,35 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   void initState() {
     super.initState();
     _initLocation();
+    _addVariantRow(); // Start with 1 empty variant row
   }
 
   Future<void> _initLocation() async {
     await LocationService.loadData();
     if (mounted) setState(() => _isLocationLoaded = true);
+  }
+
+  // --- VARIANT LOGIC ---
+  void _addVariantRow() {
+    setState(() {
+      _variantControllers.add({
+        'weight': TextEditingController(),
+        'price': TextEditingController(),
+        'qty': TextEditingController(),
+      });
+    });
+  }
+
+  void _removeVariantRow(int index) {
+    if (_variantControllers.length > 1) {
+      setState(() {
+        _variantControllers.removeAt(index);
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need at least one size option.")),
+      );
+    }
   }
 
   @override
@@ -82,6 +108,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
               ? null
               : () async {
                   if (!_formKey.currentState!.validate()) return;
+
                   // Validation for Location
                   if (_selectedCity == null) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -89,7 +116,55 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                     return;
                   }
 
-                  final success = await manager.postListing();
+                  // --- 1. GATHER VARIANT DATA ---
+                  List<Map<String, dynamic>> variantsData = [];
+                  double minPrice = double.infinity;
+                  int totalQty = 0;
+                  String displayWeight = "";
+
+                  for (var controllers in _variantControllers) {
+                    String w = controllers['weight']!.text.trim();
+                    double p =
+                        double.tryParse(controllers['price']!.text.trim()) ??
+                            0.0;
+                    int q = int.tryParse(controllers['qty']!.text.trim()) ?? 0;
+
+                    variantsData.add({
+                      'weight': w,
+                      'price': p,
+                      'quantity': q,
+                    });
+
+                    // Calculate totals for the main card display
+                    if (p < minPrice) minPrice = p;
+                    totalQty += q;
+                    if (displayWeight.isEmpty) displayWeight = w;
+                  }
+
+                  // --- 2. UPDATE MANAGER STATE ---
+                  // We update the manager with the calculated totals so the backend works
+                  manager.setPrice(minPrice.toString()); // Convert to String
+                  manager.setQuantity(totalQty.toString());
+                  manager.setWeight(displayWeight);
+
+                  // We also need to send the full location string
+                  String fullAddress =
+                      "$_selectedRegion, $_selectedProvince, $_selectedCity";
+                  if (_selectedBarangay != null)
+                    fullAddress += ", $_selectedBarangay";
+                  manager.setLocation(fullAddress);
+
+                  // --- 3. SUBMIT ---
+                  // Note: Ensure your LivestockManager.postListing() is updated to accept the `variantsData`
+                  // or has a setter like `manager.setVariants(variantsData)`.
+                  // For now, we will assume you added a `variants` field to the manager or passed it here.
+
+                  // If you haven't updated the manager to take args, you might need to add:
+                  // manager.setVariants(variantsData);
+
+                  final success = await manager.postListing(
+                      variants: variantsData); // Pass variants here
+
                   if (success && mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -232,69 +307,91 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
               ),
               const SizedBox(height: 24),
 
-              // 3. ITEM DETAILS
+              // 3. ITEM DETAILS (Name, etc.)
               _buildSectionTitle("Item Details"),
               const SizedBox(height: 10),
               _buildInputCard(
                   child: TextFormField(
                       controller: _nameController,
                       onChanged: manager.setName,
+                      validator: (v) => v!.isEmpty ? "Required" : null,
                       decoration: _inputDeco("Title", "e.g. Brahman Bull"))),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInputCard(
-                        child: TextFormField(
-                            controller: _priceController,
-                            onChanged: manager.setPrice,
-                            keyboardType: TextInputType.number,
-                            decoration:
-                                _inputDeco("Price", "0.00", prefix: "₱ "))),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildInputCard(
-                        child: TextFormField(
-                            controller: _shippingController,
-                            onChanged: manager.setShippingFee,
-                            keyboardType: TextInputType.number,
-                            decoration:
-                                _inputDeco("Shipping", "Fee", prefix: "₱ "))),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                    child: _buildInputCard(
-                        child: TextFormField(
-                            controller: _weightController,
-                            onChanged: manager.setWeight,
-                            decoration: _inputDeco("Weight", "kg")))),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _buildInputCard(
-                        child: TextFormField(
-                            controller: _ageController,
-                            onChanged: manager.setAgeMonths,
-                            decoration: _inputDeco("Age", "months")))),
-                const SizedBox(width: 12),
-                Expanded(
-                    child: _buildInputCard(
-                  child: TextFormField(
-                    controller: _quantityController,
-                    keyboardType: TextInputType.number,
-                    decoration: _inputDeco("Quantity", "e.g. 5",
-                        icon: Icons.inventory_2_outlined),
-                    onChanged: (val) => manager.setQuantity(val),
-                  ),
-                )),
-              ]),
 
+              // --- 4. SIZES & VARIANTS (REPLACES PRICE/WEIGHT/QTY) ---
+              _buildSectionTitle("Sizes & Prices"),
+              const SizedBox(height: 4),
+              const Text("Add options like 50kg, 100kg",
+                  style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 10),
+
+              ..._variantControllers.asMap().entries.map((entry) {
+                int idx = entry.key;
+                var controllers = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: controllers['weight'],
+                              decoration: _inputDeco("Weight", "e.g. 50kg"),
+                              validator: (v) => v!.isEmpty ? "Req" : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: controllers['price'],
+                              keyboardType: TextInputType.number,
+                              decoration:
+                                  _inputDeco("Price", "0.00", prefix: "₱"),
+                              validator: (v) => v!.isEmpty ? "Req" : null,
+                            ),
+                          ),
+                          if (_variantControllers.length > 1)
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.red),
+                              onPressed: () => _removeVariantRow(idx),
+                            )
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: controllers['qty'],
+                        keyboardType: TextInputType.number,
+                        decoration: _inputDeco(
+                            "Stock Quantity", "Available heads",
+                            icon: Icons.inventory_2_outlined),
+                        validator: (v) => v!.isEmpty ? "Req" : null,
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+
+              // Add Variant Button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _addVariantRow,
+                  icon: const Icon(Icons.add),
+                  label: const Text("Add Another Size Option"),
+                  style: OutlinedButton.styleFrom(foregroundColor: brandGreen),
+                ),
+              ),
               const SizedBox(height: 24),
 
-              // --- 4. LOCATION (NEW DROPDOWNS) ---
+              // 5. LOCATION (DROPDOWNS)
               _buildSectionTitle("Location"),
               const SizedBox(height: 10),
               if (!_isLocationLoaded)
@@ -338,8 +435,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   setState(() {
                     _selectedCity = val;
                     _selectedBarangay = null;
-                    // CRITICAL: We save the City as the location for Shipping Calc compatibility
-                    manager.setLocation(val ?? "");
                   });
                 }),
                 const SizedBox(height: 10),
@@ -357,16 +452,37 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
 
               const SizedBox(height: 24),
 
-              // 5. DESCRIPTION
-              _buildSectionTitle("Description"),
+              // 6. EXTRA DETAILS
+              _buildSectionTitle("Additional Details"),
               const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: _buildInputCard(
+                      child: TextFormField(
+                          controller: _ageController,
+                          onChanged: manager.setAgeMonths, // Or setAgeString
+                          decoration: _inputDeco("Age", "e.g. 2 yrs"))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildInputCard(
+                      child: TextFormField(
+                          controller: _shippingController,
+                          onChanged: manager.setShippingFee,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              _inputDeco("Shipping", "Fee", prefix: "₱ "))),
+                ),
+              ]),
+              const SizedBox(height: 12),
               _buildInputCard(
                   child: TextFormField(
                       controller: _descController,
                       onChanged: manager.setDescription,
                       maxLines: 5,
-                      decoration:
-                          _inputDeco("Describe...", "", isMultiLine: true))),
+                      decoration: _inputDeco(
+                          "Description", "Describe health, breed...",
+                          isMultiLine: true))),
               const SizedBox(height: 40),
             ],
           ),

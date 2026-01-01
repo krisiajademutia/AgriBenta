@@ -4,17 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
-// --- SCREENS ---
 import 'add_livestock_screen.dart';
 import 'edit_profile_screen.dart';
 import 'seller_orders_screen.dart';
+import 'edit_livestock_screen.dart';
 
-// --- MODELS & SERVICES ---
 import '../models/user_model.dart';
 import '../models/livestock_model.dart';
 import '../services/user_role_manager.dart';
 
-// --- WIDGETS ---
 import '../widgets/profile_widgets/profile_header.dart';
 import '../widgets/profile_widgets/profile_stats_row.dart';
 import '../widgets/profile_widgets/profile_listings_tab.dart';
@@ -28,7 +26,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Theme Colors
   final Color bgCream = const Color(0xFFF9F6F0);
   final Color textDark = const Color(0xFF1B4332);
   final Color brandGreen = const Color(0xFF52B788);
@@ -52,7 +49,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .doc(user.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        // Loading State
         if (!snapshot.hasData) {
           return Scaffold(
             backgroundColor: bgCream,
@@ -60,22 +56,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
 
+        if (snapshot.data!.data() == null) {
+          return const Scaffold(
+              body: Center(child: Text("User data not found")));
+        }
+
         final userModel = UserModel.fromSnapshot(snapshot.data!);
 
         return Consumer<UserRoleManager>(
           builder: (context, roleManager, child) {
-            final bool hasStartedSelling = roleManager.hasTappedStartSelling;
+            final bool hasUnlockedSellerMode =
+                roleManager.hasTappedStartSelling;
 
             return Scaffold(
               backgroundColor: bgCream,
               body: SafeArea(
                 bottom: false,
                 child: SingleChildScrollView(
-                  // Padding at bottom for navigation bar
                   padding: const EdgeInsets.only(bottom: 120),
                   child: Column(
                     children: [
-                      //  HEADER
                       ProfileHeader(
                         name: userModel.name,
                         location: userModel.location,
@@ -92,164 +92,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onLogout: _logout,
                         isSellerMode: roleManager.isSeller,
                       ),
-
-                      const SizedBox(height: 10),
-
-                      //  FIRST TIME USER (CTA Card)
-                      if (!hasStartedSelling)
-                        _buildStartSellingCard(roleManager)
-
-                      //  REGULAR USER UI
-                      else
-                        Column(
-                          children: [
-                            // Mode Switcher (Buyer / Seller)
-                            Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(30),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4))
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  _modeTab("Buyer Mode", !roleManager.isSeller,
-                                      () => roleManager.switchToBuyer()),
-                                  _modeTab("Seller Mode", roleManager.isSeller,
-                                      () => roleManager.switchToSeller()),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // --- SELLER VIEW ---
-                            if (roleManager.isSeller) ...[
-                              // Dynamic Stats Row (FIXED LOGIC HERE)
-                              StreamBuilder<QuerySnapshot>(
-                                stream: FirebaseFirestore.instance
-                                    .collection('livestock')
-                                    .where('sellerId', isEqualTo: user.uid)
-                                    .snapshots(),
-                                builder: (context, snapshot) {
-                                  int totalListings = 0;
-                                  int totalSales = 0;
-                                  double totalEarnings = 0.0;
-
-                                  if (snapshot.hasData) {
-                                    totalListings = snapshot.data!.docs.length;
-
-                                    for (var doc in snapshot.data!.docs) {
-                                      final data =
-                                          doc.data() as Map<String, dynamic>;
-
-                                      // 1. Safe Status Check (Handle Capitalization & Nulls)
-                                      final String status =
-                                          (data['status'] ?? '')
-                                              .toString()
-                                              .toLowerCase();
-
-                                      if (status == 'sold') {
-                                        totalSales++;
-
-                                        // 2. Safe Price Parsing (Handle Strings, Numbers, & Currency Symbols)
-                                        final dynamic rawPrice = data['price'];
-                                        double price = 0.0;
-
-                                        if (rawPrice is num) {
-                                          price = rawPrice.toDouble();
-                                        } else if (rawPrice is String) {
-                                          // Removes '₱', commas, or spaces if present to parse correctly
-                                          String cleanPrice =
-                                              rawPrice.replaceAll(
-                                                  RegExp(r'[^0-9.]'), '');
-                                          price = double.tryParse(cleanPrice) ??
-                                              0.0;
-                                        }
-
-                                        totalEarnings += price;
-                                      }
-                                    }
-                                  }
-
-                                  return ProfileStatsRow(
-                                    totalListings: totalListings,
-                                    totalSales: totalSales,
-                                    totalEarnings: totalEarnings,
-                                  );
-                                },
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // My Sales Dashboard Button
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20.0),
-                                child: _buildActionTile(
-                                  "My Sales",
-                                  Icons.storefront_outlined,
-                                  () {
-                                    Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const SellerOrdersScreen()));
-                                  },
-                                  isHighlight: true,
-                                ),
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // My Listings Tab
-                              _buildSellerListings(user.uid),
-                            ]
-
-                            // --- BUYER VIEW ---
-                            else
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 10),
-                                    Text("Buyer Actions",
-                                        style: TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                            color: textDark)),
-                                    const SizedBox(height: 15),
-                                    _buildActionTile("My Orders",
-                                        Icons.receipt_long_outlined, () {
-                                      Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const OrdersTab()));
-                                    }),
-                                    _buildActionTile("Saved Items",
-                                        Icons.favorite_border_outlined, () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const SavedItemsScreen()),
-                                      );
-                                    }),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
+                      const SizedBox(height: 20),
+                      if (!hasUnlockedSellerMode) ...[
+                        _buildBuyerActions(context),
+                        const SizedBox(height: 30),
+                        _buildStartSellingCard(context, roleManager),
+                      ] else ...[
+                        _buildModeSwitcher(roleManager),
+                        const SizedBox(height: 20),
+                        if (roleManager.isSeller)
+                          _buildSellerDashboard(context, user.uid)
+                        else
+                          _buildBuyerActions(context),
+                      ],
                     ],
                   ),
                 ),
@@ -261,9 +116,155 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- HELPER WIDGETS ---
+  Widget _buildModeSwitcher(UserRoleManager roleManager) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Row(
+        children: [
+          _modeTab("Buyer Mode", !roleManager.isSeller,
+              () => roleManager.switchToBuyer()),
+          _modeTab("Seller Mode", roleManager.isSeller,
+              () => roleManager.switchToSeller()),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildStartSellingCard(UserRoleManager roleManager) {
+  Widget _buildBuyerActions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          Text("Buyer Actions",
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+          const SizedBox(height: 15),
+          _buildActionTile("My Orders", Icons.receipt_long_outlined, () {
+            Navigator.push(
+                context, MaterialPageRoute(builder: (_) => const OrdersTab()));
+          }),
+          _buildActionTile("Saved Items", Icons.favorite_border_outlined, () {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SavedItemsScreen()));
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSellerDashboard(BuildContext context, String userId) {
+    return Column(
+      children: [
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('orders')
+              .where('sellerId', isEqualTo: userId)
+              .where('status', isEqualTo: 'completed')
+              .snapshots(),
+          builder: (context, orderSnapshot) {
+            int totalSales = 0;
+            double totalEarnings = 0.0;
+
+            if (orderSnapshot.hasData) {
+              final docs = orderSnapshot.data!.docs;
+              totalSales = docs.length;
+              for (var doc in docs) {
+                final data = doc.data() as Map<String, dynamic>;
+                double amount =
+                    (data['totalAmount'] as num?)?.toDouble() ?? 0.0;
+                totalEarnings += amount;
+              }
+            }
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('livestock')
+                  .where('sellerId', isEqualTo: userId)
+                  .snapshots(),
+              builder: (context, listingSnapshot) {
+                int totalListings = 0;
+                if (listingSnapshot.hasData) {
+                  totalListings = listingSnapshot.data!.docs.length;
+                }
+
+                return ProfileStatsRow(
+                  totalListings: totalListings,
+                  totalSales: totalSales,
+                  totalEarnings: totalEarnings,
+                );
+              },
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: _buildActionTile(
+            "My Sales Dashboard",
+            Icons.storefront_outlined,
+            () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const SellerOrdersScreen()));
+            },
+            isHighlight: true,
+          ),
+        ),
+        const SizedBox(height: 20),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('livestock')
+              .where('sellerId', isEqualTo: userId)
+              .orderBy('postedAt', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                  child: CircularProgressIndicator(color: brandGreen));
+            }
+            final List<Livestock> listings =
+                snapshot.data?.docs.map<Livestock>((doc) {
+                      return Livestock.fromSnapshot(doc);
+                    }).toList() ??
+                    [];
+
+            return ProfileListingsTab(
+                listings: listings,
+                onAddListing: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AddLivestockScreen()));
+                },
+                onEditListing: (livestock) {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              EditLivestockScreen(livestock: livestock)));
+                });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStartSellingCard(
+      BuildContext context, UserRoleManager roleManager) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(24),
@@ -298,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ElevatedButton(
               onPressed: () async {
                 await roleManager.startSelling();
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content: const Text("Welcome to Seller Mode!"),
@@ -320,33 +321,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSellerListings(String userId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('livestock')
-          .where('sellerId', isEqualTo: userId)
-          .orderBy('postedAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: brandGreen));
-        }
-
-        final List<Livestock> listings =
-            snapshot.data?.docs.map<Livestock>((doc) {
-                  return Livestock.fromSnapshot(doc);
-                }).toList() ??
-                [];
-
-        return ProfileListingsTab(
-          listings: listings,
-          onAddListing: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const AddLivestockScreen())),
-        );
-      },
     );
   }
 
