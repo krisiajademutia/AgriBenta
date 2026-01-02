@@ -20,34 +20,39 @@ class Category {
     );
   }
 
-  //HELPER: The "Translator" (Text -> Icon)
-  IconData getIcon() {
+  //HELPER: The "Translator" (Text -> Emoji String)
+  // Changed return type from IconData to String
+  String getEmoji() {
     switch (iconKey) {
-      // Existing
+      // Requested Livestock
       case 'cow':
-        return Icons.catching_pokemon;
+        return '🐄';
       case 'pig':
-        return Icons.savings;
+        return '🐖';
       case 'goat':
-        return Icons.grass;
+        return '🐐';
       case 'chicken':
-        return Icons.egg;
-      case 'dairy':
-        return Icons.local_drink;
-
-      // NEW ONES:
+        return '🐓';
       case 'duck':
-        return Icons.water; // Duck
+        return '🦆';
       case 'carabao':
-        return Icons.agriculture; // Carabao
-      case 'fresh_egg':
-        return Icons.egg_alt; // Egg
+        return '🐃';
+
+      // Specials
       case 'other':
-        return Icons.grid_view; // Others
+        return '📦';
+      case 'all':
+        return '🏠';
+
+      // Products (kept from your original code just in case)
+      case 'dairy':
+        return '🥛';
+      case 'fresh_egg':
+        return '🥚';
 
       // Fallback
       default:
-        return Icons.pets;
+        return '🐾';
     }
   }
 }

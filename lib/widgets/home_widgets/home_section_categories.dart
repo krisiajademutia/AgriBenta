@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:agribenta/models/category_model.dart';
+import '../../models/category_model.dart';
 
 typedef CategorySelectedCallback = void Function(String categoryName);
 
@@ -19,24 +19,13 @@ class SectionCategories extends StatefulWidget {
 }
 
 class _SectionCategoriesState extends State<SectionCategories> {
-  // 1. Keep the Stream active so it doesn't reload on tap
   late Stream<QuerySnapshot> _categoriesStream;
-
-  // 2. Keep the Scroll Controller alive to remember position
-  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    // Initialize the stream only ONCE
     _categoriesStream =
         FirebaseFirestore.instance.collection('categories').snapshots();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose(); // Clean up memory
-    super.dispose();
   }
 
   @override
@@ -50,94 +39,113 @@ class _SectionCategoriesState extends State<SectionCategories> {
             "Categories",
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1B4332), // Dark Green
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1B4332),
+              letterSpacing: -0.5,
             ),
           ),
         ),
-        const SizedBox(height: 15),
+        const SizedBox(height: 12), // Reduced spacing slightly
+
+        // [1] REDUCED OVERALL HEIGHT (120 -> 95)
         SizedBox(
-          height: 90,
+          height: 95,
           child: StreamBuilder<QuerySnapshot>(
-            stream: _categoriesStream, // Use the stored stream
+            stream: _categoriesStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF52B788)));
+                return const Center(child: SizedBox());
               }
 
-              if (snapshot.hasError) {
-                return const Text("Error loading categories");
-              }
+              final docs = snapshot.hasData ? snapshot.data!.docs : [];
 
-              final docs = snapshot.data?.docs ?? [];
+              final allCategories = [
+                Category(id: 'all', name: 'All', iconKey: 'all'),
+                ...docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return Category.fromSnapshot(doc.id, data);
+                }),
+              ];
 
-              // --- FIXED SECTION START ---
-              // We map the docs carefully to match your Model's requirements
-              List<Category> categories = docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>; // 1. Get Data
-                return Category.fromSnapshot(
-                    doc.id, data); // 2. Pass ID & Data separately
-              }).toList();
-              // --- FIXED SECTION END ---
-
-              // Add "All" Category at the start
-              categories.insert(
-                0,
-                Category(
-                  id: 'all',
-                  name: 'All',
-                  iconKey: 'grid_view',
-                ),
-              );
-
-              return ListView.separated(
-                controller: _scrollController, // Attach controller
+              return ListView.builder(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                itemCount: categories.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 12),
+                physics: const BouncingScrollPhysics(),
+                itemCount: allCategories.length,
                 itemBuilder: (context, index) {
-                  final cat = categories[index];
-                  // Compare names to check if selected
+                  final cat = allCategories[index];
                   final isSelected = widget.selectedCategoryName == cat.name;
 
                   return GestureDetector(
                     onTap: () => widget.onCategorySelected(cat.name),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: 75,
+                      duration: const Duration(milliseconds: 200),
+                      margin:
+                          const EdgeInsets.only(right: 12, bottom: 5, top: 5),
+
+                      // [2] REDUCED CARD WIDTH (80 -> 68)
+                      width: 68,
+
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF52B788) // Brand Green
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
+                        color:
+                            isSelected ? const Color(0xFF52B788) : Colors.white,
+                        borderRadius: BorderRadius.circular(
+                            20), // Slightly smaller radius
                         boxShadow: [
-                          if (!isSelected)
+                          if (isSelected)
                             BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4)),
+                                color: const Color(0xFF52B788).withOpacity(0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4))
+                          else
+                            BoxShadow(
+                                color:
+                                    const Color(0xFF1B4332).withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3)),
                         ],
+                        border: isSelected
+                            ? Border.all(color: Colors.transparent)
+                            : Border.all(color: Colors.grey.shade100),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            cat.getIcon(),
-                            size: 28,
-                            color: isSelected ? Colors.white : Colors.grey[400],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            cat.name,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                          // [3] REDUCED EMOJI CIRCLE SIZE (50 -> 40)
+                          Container(
+                            width: 40,
+                            height: 40,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF1B4332),
+                                  ? Colors.white.withOpacity(0.2)
+                                  : const Color(0xFFF9F6F0),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              cat.getEmoji(),
+                              // [4] REDUCED FONT SIZE (26 -> 20)
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                          ),
+                          const SizedBox(height: 6), // Reduced spacing
+
+                          // Name Text
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Text(
+                              cat.name,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10, // Smaller font
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF1B4332),
+                              ),
                             ),
                           ),
                         ],
