@@ -43,8 +43,6 @@ class UserRoleManager extends ChangeNotifier {
           // If backend says they are a seller, unlock the UI
           if (_userRole == 'seller') {
             _hasTappedStartSelling = true;
-            // Optional: If you want them to land on Seller Tab by default on restart:
-            // _isSeller = true;
           }
         }
       } catch (e) {

@@ -215,7 +215,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // --- 2. BUILD AVATAR HELPER ---
   Widget _buildAvatar(String? url) {
     return CircleAvatar(
-      radius: 16, // Small avatar size
+      radius: 16,
       backgroundColor: Colors.grey[300],
       backgroundImage:
           (url != null && url.isNotEmpty) ? NetworkImage(url) : null,

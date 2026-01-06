@@ -75,9 +75,20 @@ class OrderManager {
             // Fallback if variant structure changed or mismatch
             throw "Variant ${item.selectedWeight} not found.";
           }
-
-          // Update the variants array in the database
-          batch.update(livestockRef, {'variants': variants});
+          // 1. Recalculate TOTAL stock from ALL variants
+          int newTotalStock = 0;
+          for (var v in variants) {
+            newTotalStock += (v['quantity'] as num).toInt();
+          }
+          // If total stock is 0, status becomes 'sold'. Otherwise, it stays 'active'.
+          String newStatus =
+              newTotalStock <= 0 ? 'sold' : (data['status'] ?? 'active');
+          // 3. Update EVERYTHING (Variants + Total Quantity + Status)
+          batch.update(livestockRef, {
+            'variants': variants,
+            'quantity': newTotalStock,
+            'status': newStatus,
+          });
         } else {
           // --- SIMPLE PRODUCT LOGIC ---
           int currentQty = data['quantity'] ?? 0;

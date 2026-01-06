@@ -282,7 +282,7 @@ class _BuyerOrderCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                "Variant: $weight",
+                                "Weight: $weight",
                                 style: TextStyle(
                                     fontSize: 12, color: Colors.grey[700]),
                               ),

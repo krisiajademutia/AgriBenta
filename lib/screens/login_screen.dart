@@ -1,4 +1,3 @@
-// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/agribenta_scaffold.dart';
@@ -71,42 +70,27 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 1. LOGO
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: harvestGold.withOpacity(0.3),
-                                  width: 2),
-                              color: harvestGold.withOpacity(0.1))),
-                      Container(
-                          width: 115,
-                          height: 115,
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(colors: [
-                                Color(0xFFD4A574),
-                                Color(0xFF52B788)
-                              ])),
-                          child: Container(
-                              decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white))),
-                      ClipOval(
-                          child: Container(
-                              width: 95,
-                              height: 95,
-                              padding: const EdgeInsets.all(14),
-                              child: Image.asset('assets/icons/livestock.png',
-                                  color: const Color(0xFF40916C),
-                                  fit: BoxFit.contain))),
-                    ],
+                  // --- MODIFIED LOGO SECTION (SPLASH STYLE) ---
+                  Container(
+                    height:
+                        isSmallScreen ? 100 : 130, // Adjusted size for Login
+                    margin: const EdgeInsets.only(bottom: 24),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1B4332).withOpacity(0.2),
+                          blurRadius: 40,
+                          spreadRadius: 5,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/icons/livestock.png',
+                      fit: BoxFit.contain,
+                      color: Color(0xFF40916C),
+                    ),
                   ),
 
                   SizedBox(height: isSmallScreen ? 20 : 24),
@@ -196,18 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : null,
                           ),
 
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                                onPressed: () {},
-                                child: Text("Forgot Password?",
-                                    style: TextStyle(
-                                        color: harvestGold,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600))),
-                          ),
-
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 13),
 
                           // Button
                           Container(

@@ -9,20 +9,19 @@ class AuthProvider extends ChangeNotifier {
   String? get userId => _userId;
   bool get isSeller => _isSeller;
 
-  // Login function (mock muna – pwede na for demo)
+  // Login function
   Future<bool> login(String email, String password) async {
-    // Fake delay para feel ng real login
+    // Simulate network delay
     await Future.delayed(const Duration(seconds: 1));
 
     if (email.isEmpty || password.isEmpty) {
       return false;
     }
 
-    // Simple rule: kapag may "seller" sa email → seller
     _userId = email.trim();
     _isSeller = email.toLowerCase().contains("seller");
 
-    notifyListeners(); // Importanteng line – sinasabi sa app na may nagbago
+    notifyListeners();
     return true;
   }
 

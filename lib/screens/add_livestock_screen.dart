@@ -20,10 +20,8 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   final TextEditingController _shippingController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  // Note: Price, Weight, and Quantity controllers are now dynamic (see below)
 
   // --- NEW: VARIANT CONTROLLERS ---
-  // Each item in this list represents one row: {weight, price, qty}
   List<Map<String, TextEditingController>> _variantControllers = [];
 
   // --- LOCATION STATE ---
@@ -39,7 +37,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     'goat': Icons.grass,
     'pig': Icons.savings,
     'chicken': Icons.egg,
-    'duck': Icons.water, // Fixed icon name
+    'duck': Icons.water,
     'other': Icons.grid_view,
   };
 
@@ -54,7 +52,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   void initState() {
     super.initState();
     _initLocation();
-    _addVariantRow(); // Start with 1 empty variant row
+    _addVariantRow();
   }
 
   Future<void> _initLocation() async {
@@ -141,26 +139,15 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                     if (displayWeight.isEmpty) displayWeight = w;
                   }
 
-                  // --- 2. UPDATE MANAGER STATE ---
-                  // We update the manager with the calculated totals so the backend works
                   manager.setPrice(minPrice.toString()); // Convert to String
                   manager.setQuantity(totalQty.toString());
                   manager.setWeight(displayWeight);
 
-                  // We also need to send the full location string
                   String fullAddress =
                       "$_selectedRegion, $_selectedProvince, $_selectedCity";
                   if (_selectedBarangay != null)
                     fullAddress += ", $_selectedBarangay";
                   manager.setLocation(fullAddress);
-
-                  // --- 3. SUBMIT ---
-                  // Note: Ensure your LivestockManager.postListing() is updated to accept the `variantsData`
-                  // or has a setter like `manager.setVariants(variantsData)`.
-                  // For now, we will assume you added a `variants` field to the manager or passed it here.
-
-                  // If you haven't updated the manager to take args, you might need to add:
-                  // manager.setVariants(variantsData);
 
                   final success = await manager.postListing(
                       variants: variantsData); // Pass variants here
@@ -461,7 +448,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                       child: TextFormField(
                           controller: _ageController,
                           onChanged: manager.setAgeMonths, // Or setAgeString
-                          decoration: _inputDeco("Age", "e.g. 2 yrs"))),
+                          decoration: _inputDeco("Age", "e.g. 2 months"))),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

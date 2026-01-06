@@ -47,47 +47,24 @@ class _GetStartedScreenState extends State<GetStartedScreen>
             child: Column(
               children: [
                 const Spacer(flex: 2),
+                // --- MODIFIED LOGO SECTION (SPLASH STYLE) ---
                 FadeTransition(
                   opacity: _fadeController,
-                  child: ScaleTransition(
-                    scale: Tween<double>(begin: 0.8, end: 1.0).animate(
-                        CurvedAnimation(
-                            parent: _slideController,
-                            curve: Curves.easeOutBack)),
-                    child: Stack(alignment: Alignment.center, children: [
-                      Container(
-                          width: 160,
-                          height: 160,
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color:
-                                      const Color(0xFFD4A574).withOpacity(0.3),
-                                  width: 2),
-                              color: const Color(0xFFD4A574).withOpacity(0.1))),
-                      Container(
-                          width: 136,
-                          height: 136,
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(colors: [
-                                Color(0xFFD4A574),
-                                Color(0xFF52B788)
-                              ])),
-                          child: Container(
-                              decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.white))),
-                      ClipOval(
-                          child: Container(
-                              width: 108,
-                              height: 108,
-                              padding: const EdgeInsets.all(18),
-                              child: Image.asset('assets/icons/livestock.png',
-                                  color: const Color(0xFF40916C),
-                                  fit: BoxFit.contain))),
-                    ]),
+                  child: Container(
+                    height: isSmallScreen ? 200 : 280,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1B4332).withOpacity(0.25),
+                          blurRadius: 50,
+                          spreadRadius: 10,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Image.asset('assets/icons/livestock.png',
+                        fit: BoxFit.contain, color: Color(0xFF40916C)),
                   ),
                 ),
                 const Spacer(flex: 1),

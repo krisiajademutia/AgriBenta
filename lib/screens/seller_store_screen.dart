@@ -5,7 +5,7 @@ import '../models/livestock_model.dart';
 import '../models/user_model.dart';
 import 'livestock_detail_screen.dart';
 import 'chat_screen.dart';
-import '../widgets/livestock_card.dart'; // <--- Make sure this import is here
+import '../widgets/livestock_card.dart';
 
 class SellerStoreScreen extends StatelessWidget {
   final UserModel seller;

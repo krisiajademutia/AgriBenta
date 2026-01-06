@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+//import 'package:flutter/material.dart';
 
 class Category {
   final String id;
@@ -21,10 +21,8 @@ class Category {
   }
 
   //HELPER: The "Translator" (Text -> Emoji String)
-  // Changed return type from IconData to String
   String getEmoji() {
     switch (iconKey) {
-      // Requested Livestock
       case 'cow':
         return '🐄';
       case 'pig':
@@ -37,8 +35,6 @@ class Category {
         return '🦆';
       case 'carabao':
         return '🐃';
-
-      // Specials
       case 'other':
         return '📦';
       case 'all':
@@ -49,8 +45,6 @@ class Category {
         return '🥛';
       case 'fresh_egg':
         return '🥚';
-
-      // Fallback
       default:
         return '🐾';
     }

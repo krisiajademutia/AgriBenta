@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <--- Added
-import 'package:firebase_auth/firebase_auth.dart'; // <--- Added
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'tabs/marketplace_tab.dart';
 import 'tabs/message_tab.dart';
 import 'tabs/orders_tab.dart';

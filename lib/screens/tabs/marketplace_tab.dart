@@ -3,7 +3,6 @@ import 'package:agribenta/services/cart_manager.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_categories.dart';
 import 'package:agribenta/widgets/home_widgets/home_section_search.dart';
 import 'package:agribenta/widgets/home_widgets/livestock_filter_wrapper.dart';
-import 'package:agribenta/screens/notification_screen.dart';
 import 'package:agribenta/widgets/notification_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -17,7 +16,7 @@ class MarketplaceTab extends StatefulWidget {
 
 class _MarketplaceTabState extends State<MarketplaceTab> {
   String _selectedCategoryName = 'All';
-  String _searchQuery = ''; // <--- New State Variable
+  String _searchQuery = '';
 
   void _updateSelectedCategory(String newCategoryName) {
     setState(() {
@@ -26,7 +25,6 @@ class _MarketplaceTabState extends State<MarketplaceTab> {
   }
 
   void _updateSearchQuery(String value) {
-    // <--- New Function
     setState(() {
       _searchQuery = value;
     });

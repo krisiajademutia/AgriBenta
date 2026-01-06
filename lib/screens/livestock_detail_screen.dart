@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-// --- MODELS & SERVICES ---
 import '../../models/livestock_model.dart';
 import '../../models/user_model.dart';
 import '../../services/cart_manager.dart';
@@ -225,21 +223,18 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                   break;
                 }
               }
-              // If we didn't find the variant in the live DB, it might have been deleted/sold out
               if (!foundVariant) {
                 liveQty = 0;
               }
             } else {
               // SIMPLE PRODUCT LOGIC
-              liveQty = _safeInt(data['quantity']); // Use safe parser
+              liveQty = _safeInt(data['quantity']);
             }
           } else if (snapshot.connectionState == ConnectionState.waiting) {
-            // While waiting for fresh data, use what we have, but be careful
             liveQty = widget.livestock.quantity;
           }
 
           // 3. DETERMINE SOLD OUT STATE
-          // If status is Sold OR Quantity is 0 or less
           final bool isSoldOut =
               liveQty <= 0 || liveStatus.toLowerCase() == 'sold';
 

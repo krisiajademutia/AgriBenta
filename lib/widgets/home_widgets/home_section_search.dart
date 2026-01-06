@@ -45,24 +45,6 @@ class SectionSearch extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        // --- ADDED: Filter Button Visual ---
-        Container(
-          height: 55,
-          width: 55,
-          decoration: BoxDecoration(
-            color: const Color(0xFF52B788),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF52B788).withOpacity(0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.tune_rounded, color: Colors.white),
-        ),
       ],
     );
   }

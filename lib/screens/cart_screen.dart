@@ -15,7 +15,6 @@ class _CartScreenState extends State<CartScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedItemIds = {};
 
-  // Stream caching (from previous fix)
   Stream<List<CartItem>>? _cartStream;
 
   final Color textDark = const Color(0xFF1B4332);
@@ -117,7 +116,6 @@ class _CartScreenState extends State<CartScreen> {
             List<CartItem> checkoutItems;
 
             if (_isSelectionMode) {
-              // If selecting, only include selected items
               checkoutItems = cartItems
                   .where((item) => _selectedItemIds.contains(item.id))
                   .toList();
@@ -131,7 +129,6 @@ class _CartScreenState extends State<CartScreen> {
             for (var item in checkoutItems) {
               totalPrice += item.selectedPrice * item.quantity;
             }
-            // --- FIX END ---
 
             return Column(
               children: [
@@ -211,7 +208,7 @@ class _CartScreenState extends State<CartScreen> {
                   if (item.selectedWeight.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 4.0),
-                      child: Text("Size: ${item.selectedWeight}",
+                      child: Text("Weight: ${item.selectedWeight}",
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -301,7 +298,6 @@ class _CartScreenState extends State<CartScreen> {
             const Spacer(),
             ElevatedButton(
               onPressed: () {
-                // Prevent checkout if selection mode is active but list is empty
                 if (items.isEmpty) return;
 
                 Navigator.push(

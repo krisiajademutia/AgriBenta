@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/livestock_model.dart';
-import '../models/cart_model.dart'; // <--- IMPORT THE MODEL
+import '../models/cart_model.dart';
 
 class CartManager extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -45,7 +45,7 @@ class CartManager extends ChangeNotifier {
           .collection('users')
           .doc(currentUser!.uid)
           .collection('cart')
-          .doc(cartDocId); // <--- USE UNIQUE ID
+          .doc(cartDocId);
 
       final doc = await cartRef.get();
 
@@ -113,7 +113,7 @@ class CartManager extends ChangeNotifier {
     notifyListeners();
   }
 
-// --- 2. UPDATED STREAM (To read the weight back) ---
+// STREAM
   Stream<List<CartItem>> get cartStream {
     if (!isLoggedIn) return Stream.value([]);
 
@@ -122,7 +122,7 @@ class CartManager extends ChangeNotifier {
         .doc(currentUser!.uid)
         .collection('cart')
         .orderBy('addedAt', descending: true)
-        .snapshots()
+        .snapshots() //pipeline
         .asyncMap((snapshot) async {
       List<CartItem> items = [];
 
@@ -131,7 +131,6 @@ class CartManager extends ChangeNotifier {
         final String livestockId = data['livestockId']; // fetch original ID
 
         // Load Details
-        double savedPrice = (data['price'] as num?)?.toDouble() ?? 0.0;
         String savedWeight = data['weight'] ?? '';
         int savedQty = (data['quantity'] as num?)?.toInt() ?? 1;
 
@@ -149,7 +148,7 @@ class CartManager extends ChangeNotifier {
             sellerId: data['sellerId'] ?? '',
             name: data['name'] ?? 'Unknown Item',
             category: data['category'] ?? 'General',
-            price: savedPrice,
+            price: 0.0,
             shippingFee: 0.0,
             age: '',
             weight: savedWeight,
@@ -164,12 +163,25 @@ class CartManager extends ChangeNotifier {
           );
         }
 
+        //  CALCULATE REAL-TIME PRICE ---
+        double livePrice = livestock.price;
+
+        if (savedWeight.isNotEmpty && livestock.variants.isNotEmpty) {
+          try {
+            final variant = livestock.variants.firstWhere(
+              (v) => v.weight == savedWeight,
+            );
+            livePrice = variant.price;
+          } catch (e) {
+            livePrice = (data['price'] as num?)?.toDouble() ?? 0.0;
+          }
+        }
         items.add(CartItem(
           id: doc.id, // This is the cartDocId (e.g., ID_50kg)
           livestock: livestock,
           quantity: savedQty,
           selectedWeight: savedWeight, // Pass weight to UI
-          selectedPrice: savedPrice > 0 ? savedPrice : livestock.price,
+          selectedPrice: livePrice, // Pass live price to UI
         ));
       }
       return items;

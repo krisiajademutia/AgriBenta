@@ -97,7 +97,7 @@ class Livestock {
     }
 
     return Livestock(
-      id: doc.id, // Use doc.id from the snapshot
+      id: doc.id,
       sellerId: json['sellerId'] ?? '',
       name: json['name'] ?? 'Untitled Livestock',
       category: json['category'] ?? 'Other',

@@ -3,16 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-
 import 'add_livestock_screen.dart';
 import 'edit_profile_screen.dart';
 import 'seller_orders_screen.dart';
 import 'edit_livestock_screen.dart';
-
 import '../models/user_model.dart';
 import '../models/livestock_model.dart';
 import '../services/user_role_manager.dart';
-
 import '../widgets/profile_widgets/profile_header.dart';
 import '../widgets/profile_widgets/profile_stats_row.dart';
 import '../widgets/profile_widgets/profile_listings_tab.dart';

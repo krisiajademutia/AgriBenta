@@ -385,6 +385,24 @@ class LivestockManager extends ChangeNotifier {
 
       // B. Convert Variants to Map List
       final variantsList = variants.map((v) => v.toMap()).toList();
+      // ============================================================
+      // 🛠️ THE FIX: RECALCULATE QUANTITY & STATUS
+      // ============================================================
+      int finalTotalQty = 0;
+
+      if (variants.isNotEmpty) {
+        // Option 1: It has variants (e.g., 2kg, 5kg) -> Sum them up!
+        for (var v in variants) {
+          finalTotalQty += v.quantity;
+        }
+      } else {
+        // Option 2: No variants (Simple Listing) -> Use the manual input
+        finalTotalQty = quantity;
+      }
+
+      // Automatically flip status back to 'active' if stock > 0
+      String finalStatus = finalTotalQty > 0 ? 'active' : 'sold_out';
+      // ============================================================
 
       // C. Update Firestore
       await _firestore.collection('livestock').doc(docId).update({
@@ -392,7 +410,8 @@ class LivestockManager extends ChangeNotifier {
         'category': category,
         'price': price, // Calculated lowest price
         'weight': weight, // Calculated or default weight
-        'quantity': quantity, // Total quantity
+        'quantity': finalTotalQty, // Total quantity
+        'status': finalStatus,
         'description': description,
         'location': location,
         'age': age,
