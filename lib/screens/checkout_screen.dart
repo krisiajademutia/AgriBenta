@@ -333,7 +333,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   color: _isPickUp ? _accentColor : Colors.grey.shade300),
             ),
             child: SwitchListTile(
-              activeColor: _primaryColor,
+              activeColor: Color(0xFF52B788),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
               title: Text("I will pick up the item",
                   style: TextStyle(

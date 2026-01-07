@@ -109,7 +109,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Notifications deleted")),
+          const SnackBar(
+              content: Text("Notifications deleted"),
+              backgroundColor: Color(0xFF52B788)),
         );
       }
     }
