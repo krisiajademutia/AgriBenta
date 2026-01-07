@@ -3,34 +3,25 @@ import 'package:agribenta/models/livestock_model.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:agribenta/services/img_bb.dart';
 import 'package:image_picker/image_picker.dart';
 
 class LivestockManager extends ChangeNotifier {
-  final _firestore = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance; // Connection to Database
+  final _auth = FirebaseAuth.instance; // Connection to User Auth
 
-  // --- Listing State Variables ---
+  // --- Listing State Variables(holders) ---
   String? _name;
   String? _category;
   double? _price;
   double? _shippingFee;
   String? _location;
-
-  // Age State
   String? _ageYears;
   String? _ageMonths;
   String? _weight;
-
-  // Description State
   String? _description;
   int _quantity = 1;
-
-  // Image and Loading State
   bool _isSaving = false;
-  bool _isLoadingLocation = false;
 
   // --- Dynamic Categories State ---
   List<String> _availableCategories = [];
@@ -51,7 +42,6 @@ class LivestockManager extends ChangeNotifier {
   String? get description => _description;
   bool get isSaving => _isSaving;
   double? get shippingFee => _shippingFee;
-  bool get isLoadingLocation => _isLoadingLocation;
   List<String> get availableCategories => _availableCategories;
   bool get isLoadingCategories => _isLoadingCategories;
 
@@ -65,7 +55,7 @@ class LivestockManager extends ChangeNotifier {
   // --- Setters ---
   void setName(String value) {
     _name = value;
-    notifyListeners();
+    notifyListeners(); // to notify UI to update the screen
   }
 
   void setCategory(String value) {
@@ -184,66 +174,19 @@ class LivestockManager extends ChangeNotifier {
           .removeWhere((name) => name == 'Unknown Category' || name.isEmpty);
     } catch (e) {
       debugPrint("Error fetching categories: $e");
-      _availableCategories = ['Cattle', 'Goat', 'Pig', 'Chicken'];
+      _availableCategories = [
+        'All',
+        'Other',
+        'Chicken',
+        'Duck',
+        'Goat',
+        'Carabao',
+        'Pig'
+      ];
     }
 
     _isLoadingCategories = false;
     notifyListeners();
-  }
-
-  // --- Location Logic ---
-  Future<String> _getAddressFromCoordinates(Position position) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-      if (placemarks.isNotEmpty) {
-        Placemark place = placemarks.first;
-        return [place.subLocality, place.locality, place.country]
-            .where((s) => s != null && s.isNotEmpty)
-            .join(', ');
-      }
-      return 'Location Found, Address Unavailable';
-    } catch (e) {
-      debugPrint("Error in Reverse Geocoding: $e");
-      return 'Failed to convert coordinates to address';
-    }
-  }
-
-  Future<void> getCurrentLocation() async {
-    if (_isLoadingLocation) return;
-    _isLoadingLocation = true;
-    _location = 'Fetching location...';
-    notifyListeners();
-
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) throw Exception('Location services are disabled.');
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied ||
-            permission == LocationPermission.deniedForever) {
-          throw Exception('Location permission permanently denied.');
-        }
-      }
-
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 10),
-      );
-
-      String address = await _getAddressFromCoordinates(position);
-      _location = address;
-    } catch (e) {
-      debugPrint("Error getting location: $e");
-      _location = 'Location Error';
-    } finally {
-      _isLoadingLocation = false;
-      notifyListeners();
-    }
   }
 
   // --- POST LISTING ---

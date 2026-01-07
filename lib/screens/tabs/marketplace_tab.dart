@@ -55,18 +55,6 @@ class _MarketplaceTabState extends State<MarketplaceTab> {
                       fontSize: 24)),
             ),
             actions: [
-              /*IconButton(
-                onPressed: () {
-                  // Navigate to Notifications Tab
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const NotificationScreen()),
-                  );
-                },
-                icon: const Icon(Icons.notifications_outlined,
-                    color: textDark, size: 26),
-              ),*/
               const NotificationBadge(),
               Padding(
                 padding: const EdgeInsets.only(right: 12.0),

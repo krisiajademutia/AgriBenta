@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:agribenta/services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:agribenta/services/livestock_manager.dart';
+import 'package:agribenta/models/category_model.dart';
 
 class AddLivestockScreen extends StatefulWidget {
   const AddLivestockScreen({super.key});
@@ -20,9 +20,8 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   final TextEditingController _shippingController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-
-  // --- NEW: VARIANT CONTROLLERS ---
-  List<Map<String, TextEditingController>> _variantControllers = [];
+  List<Map<String, TextEditingController>> _variantControllers =
+      []; //VARIANT CONTROLLER
 
   // --- LOCATION STATE ---
   bool _isLocationLoaded = false;
@@ -30,19 +29,6 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
   String? _selectedProvince;
   String? _selectedCity;
   String? _selectedBarangay;
-
-  final Map<String, IconData> _iconRegistry = {
-    'cow': Icons.catching_pokemon,
-    'carabao': Icons.agriculture,
-    'goat': Icons.grass,
-    'pig': Icons.savings,
-    'chicken': Icons.egg,
-    'duck': Icons.water,
-    'other': Icons.grid_view,
-  };
-
-  IconData _getIconFromKey(String key) =>
-      _iconRegistry[key] ?? Icons.help_outline;
 
   final Color bgCream = const Color(0xFFF9F6F0);
   final Color textDark = const Color(0xFF1B4332);
@@ -53,6 +39,32 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
     super.initState();
     _initLocation();
     _addVariantRow();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Note: Please upload LIVESTOCK photos only. Avoid non-related posts.",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange[800], // Warning Color
+            duration: const Duration(seconds: 6), // Stay longer so they read it
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(20),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _initLocation() async {
@@ -152,6 +164,7 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                   final success = await manager.postListing(
                       variants: variantsData); // Pass variants here
 
+                  //If the upload worked, we close the screen and show a message.
                   if (success && mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -250,13 +263,13 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                       scrollDirection: Axis.horizontal,
                       itemCount: categoriesDocs.length,
                       itemBuilder: (context, index) {
-                        final data = categoriesDocs[index].data()
-                            as Map<String, dynamic>;
-                        final String catName = data['name'] ?? 'Unknown';
-                        final String iconKey = data['icon_key'] ?? 'other';
-                        final bool isSelected = manager.category == catName;
+                        final doc = categoriesDocs[index];
+                        final categoryObj = Category.fromSnapshot(
+                            doc.id, doc.data() as Map<String, dynamic>);
+                        final bool isSelected =
+                            manager.category == categoryObj.name;
                         return GestureDetector(
-                          onTap: () => manager.setCategory(catName),
+                          onTap: () => manager.setCategory(categoryObj.name),
                           child: Container(
                             margin: const EdgeInsets.only(right: 12),
                             padding: const EdgeInsets.symmetric(
@@ -271,13 +284,14 @@ class _AddLivestockScreenState extends State<AddLivestockScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(_getIconFromKey(iconKey),
-                                    size: 18,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey[600]),
+                                Text(
+                                  categoryObj
+                                      .getEmoji(), // <--- Calling your Model!
+                                  style: const TextStyle(
+                                      fontSize: 20), // Emojis need font size
+                                ),
                                 const SizedBox(width: 8),
-                                Text(catName,
+                                Text(categoryObj.name,
                                     style: TextStyle(
                                         color: isSelected
                                             ? Colors.white

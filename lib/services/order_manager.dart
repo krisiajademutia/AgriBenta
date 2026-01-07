@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../models/cart_model.dart';
 import 'notification_manager.dart';
+import 'package:agribenta/services/shipping_calculator.dart';
 
 class OrderManager {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -19,7 +20,6 @@ class OrderManager {
     required BuildContext context,
   }) async {
     if (currentUser == null) return false;
-
     try {
       final batch = _firestore.batch();
       final buyerId = currentUser!.uid;
@@ -30,38 +30,56 @@ class OrderManager {
       final String buyerName = userData['name'] ?? 'AgriBenta User';
 
       String buyerCity = '';
+      String buyerProvince = '';
+      String buyerRegion = '';
+
       if (!isPickup) {
-        final parts = deliveryAddress.split(',');
-        if (parts.length >= 3) {
-          buyerCity = parts[parts.length - 3].trim();
+        // We assume format: "Region, Province, City, Brgy, Street"
+        // (Matching how you save it in CheckoutScreen)
+        List<String> addressParts = deliveryAddress
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .toList();
+
+        if (addressParts.isNotEmpty) {
+          // The last item is the Region
+          buyerRegion = addressParts.last;
+        }
+        if (addressParts.length >= 2) {
+          // Second to last is Province
+          buyerProvince = addressParts[addressParts.length - 2];
+        }
+        if (addressParts.length >= 3) {
+          // Third to last is City
+          buyerCity = addressParts[addressParts.length - 3];
         }
       }
 
-      // 2. CHECK & DECREMENT STOCK (Crucial Step Added)
+      // CHECK & DECREMENT STOCK
+      // 1. Loop through every item the user is buying
       for (var item in items) {
+        // 2. Get the latest data from the database (Fresh Fetch)
         final livestockRef =
             _firestore.collection('livestock').doc(item.livestock.id);
         final livestockDoc = await livestockRef.get();
-
         if (!livestockDoc.exists) {
           throw "One of the items no longer exists.";
         }
-
         final data = livestockDoc.data() as Map<String, dynamic>;
 
-        // Handle Variants vs Main Quantity
+        // 3. Handling VARIANTS (e.g. "Small 50kg")
         if (item.selectedWeight != null && data['variants'] != null) {
           // --- VARIANT LOGIC ---
           List<dynamic> variants = List.from(data['variants']);
           bool variantFound = false;
 
+          // Loop to find the specific variant (e.g. Find "50kg")
           for (var i = 0; i < variants.length; i++) {
-            // Match variant by weight/name
             if (variants[i]['weight'] == item.selectedWeight) {
+              // Match variant by weight/name
               int currentQty = variants[i]['quantity'] ?? 0;
-
               if (currentQty < item.quantity) {
-                throw "Not enough stock for ${item.livestock.name} (${item.selectedWeight})";
+                throw "Not enough stock for ${item.livestock.name} (${item.selectedWeight})"; //check for availability
               }
 
               // Decrement
@@ -83,7 +101,7 @@ class OrderManager {
           // If total stock is 0, status becomes 'sold'. Otherwise, it stays 'active'.
           String newStatus =
               newTotalStock <= 0 ? 'sold' : (data['status'] ?? 'active');
-          // 3. Update EVERYTHING (Variants + Total Quantity + Status)
+          // Update EVERYTHING (Variants + Total Quantity + Status)
           batch.update(livestockRef, {
             'variants': variants,
             'quantity': newTotalStock,
@@ -109,7 +127,7 @@ class OrderManager {
         }
       }
 
-      // 3. Group items by Seller for Order Creation
+      // Group items by Seller for Order Creation
       Map<String, List<CartItem>> itemsBySeller = {};
       for (var item in items) {
         final sellerId = item.livestock.sellerId;
@@ -121,7 +139,7 @@ class OrderManager {
 
       List<Map<String, dynamic>> pendingNotifications = [];
 
-      // 4. Create Order per Seller
+      // Create Order per Seller
       for (var entry in itemsBySeller.entries) {
         final sellerId = entry.key;
         final sellerItems = entry.value;
@@ -133,16 +151,17 @@ class OrderManager {
           sellerItemTotal += item.selectedPrice * item.quantity;
 
           if (!isPickup) {
+            //get seller input shipping fee
             double baseFee = item.livestock.shippingFee;
-            String sellerCity = item.livestock.location.trim();
-            bool isSameCity = buyerCity.isNotEmpty &&
-                sellerCity.toLowerCase().contains(buyerCity.toLowerCase());
-
-            if (isSameCity) {
-              sellerShippingTotal += baseFee;
-            } else {
-              sellerShippingTotal += (baseFee + 500.0);
-            }
+            // --- CALL THE NEW HELPER --- 📞
+            double surcharge = ShippingCalculator.calculateSurcharge(
+              buyerCity: buyerCity,
+              buyerProvince: buyerProvince,
+              buyerRegion: buyerRegion,
+              sellerLocationString: item.livestock.location,
+            );
+            // final shipping for THIS item
+            sellerShippingTotal += (baseFee + surcharge);
           }
         }
 

@@ -105,6 +105,7 @@ class _MessageTabState extends State<MessageTab> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        centerTitle: true,
         actions: [
           if (_isSelectionMode)
             IconButton(

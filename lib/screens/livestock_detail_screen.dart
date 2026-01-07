@@ -422,8 +422,8 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         _buildSpecRow("Category", widget.livestock.category),
-                        _buildSpecRow("Age", widget.livestock.age),
-                        _buildSpecRow("Weight", displayWeight),
+                        _buildSpecRow("Age", "${widget.livestock.age} months"),
+                        _buildSpecRow("Weight", "$displayWeight kg"),
 
                         // REAL-TIME STOCK DISPLAY
                         Padding(
@@ -499,9 +499,8 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                                 backgroundColor: isSoldOut
                                     ? Colors.grey[300]
                                     : const Color(0xFFE8F5E9),
-                                foregroundColor: isSoldOut
-                                    ? Colors.grey
-                                    : const Color(0xFF1B4332),
+                                foregroundColor:
+                                    isSoldOut ? Colors.grey : Color(0xFF52B788),
                                 elevation: 0,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
@@ -522,9 +521,8 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                               // Disable if Sold Out
                               onPressed: isSoldOut ? null : _buyNow,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: isSoldOut
-                                    ? Colors.grey
-                                    : const Color(0xFF1B4332),
+                                backgroundColor:
+                                    isSoldOut ? Colors.grey : Color(0xFF52B788),
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                                 elevation: 2,

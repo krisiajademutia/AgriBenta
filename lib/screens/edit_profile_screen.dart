@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <--- 1. IMPORT THIS for inputFormatters
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:agribenta/services/profile_manager.dart';
@@ -285,7 +285,7 @@ class EditProfileScreen extends StatelessWidget {
                                         ),
                                       ],
                                     ),
-                                    backgroundColor: Colors.green[700],
+                                    backgroundColor: Color(0xFF1B4332), //
                                     behavior: SnackBarBehavior.floating,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),

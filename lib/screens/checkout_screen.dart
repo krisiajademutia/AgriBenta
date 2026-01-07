@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../services/cart_manager.dart';
 import '../services/order_manager.dart';
 import 'package:flutter/services.dart';
+import 'package:agribenta/services/shipping_calculator.dart';
 
 // -----------------------------------------------------------------------------
 // SERVICE: Handles Loading the Philippines Location JSON
@@ -158,26 +159,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     double totalShipping = 0.0;
-    bool isLongDistance = false;
+    double maxSurchargeFound = 0.0;
 
     for (var item in widget.items) {
       double baseFee = item.livestock.shippingFee;
-      String sellerCity = item.livestock.location.trim();
-      bool isSameCity = _selectedCity == sellerCity;
+      double surcharge = ShippingCalculator.calculateSurcharge(
+        buyerCity: _selectedCity!,
+        buyerProvince: _selectedProvince!,
+        buyerRegion: _selectedRegion!,
+        sellerLocationString: item.livestock.location,
+      );
+      totalShipping += (baseFee + surcharge);
 
-      if (isSameCity) {
-        totalShipping += baseFee;
-      } else {
-        totalShipping += (baseFee + 500.0);
-        isLongDistance = true;
+      if (surcharge > maxSurchargeFound) {
+        maxSurchargeFound = surcharge;
       }
     }
 
     setState(() {
       _shippingFee = totalShipping;
-      _shippingLabel = isLongDistance
-          ? "Provincial Delivery (+₱500)"
-          : "Standard Local Delivery";
+      // Get the correct label text from the helper too!
+      _shippingLabel = ShippingCalculator.getLabel(maxSurchargeFound);
     });
   }
 

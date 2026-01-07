@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:agribenta/services/livestock_manager.dart';
 import '../../models/livestock_model.dart';
+import 'package:agribenta/models/category_model.dart';
 
 class EditLivestockScreen extends StatefulWidget {
   final Livestock livestock;
@@ -21,8 +22,6 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
   late TextEditingController _shippingController;
   late TextEditingController _ageController;
   late TextEditingController _descController;
-
-  // --- VARIANT CONTROLLERS ---
   List<Map<String, TextEditingController>> _variantControllers = [];
 
   // --- LOCATION STATE ---
@@ -37,24 +36,36 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
   final Color textDark = const Color(0xFF1B4332);
   final Color brandGreen = const Color(0xFF52B788);
 
-  // Icons
-  final Map<String, IconData> _iconRegistry = {
-    'cow': Icons.catching_pokemon,
-    'carabao': Icons.agriculture,
-    'goat': Icons.grass,
-    'pig': Icons.savings,
-    'chicken': Icons.egg,
-    'duck': Icons.water,
-    'other': Icons.grid_view,
-  };
-
-  IconData _getIconFromKey(String key) =>
-      _iconRegistry[key] ?? Icons.help_outline;
-
   @override
   void initState() {
     super.initState();
     _initData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "Note: Please upload LIVESTOCK photos only.Avoid non-related posts.",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange[800], // Warning Color
+            duration: const Duration(seconds: 6), // Stay longer so they read it
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(20),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    });
   }
 
   Future<void> _initData() async {
@@ -313,14 +324,15 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                           scrollDirection: Axis.horizontal,
                           itemCount: categoriesDocs.length,
                           itemBuilder: (context, index) {
-                            final data = categoriesDocs[index].data()
-                                as Map<String, dynamic>;
-                            final String catName = data['name'] ?? 'Unknown';
-                            final String iconKey = data['icon_key'] ?? 'other';
-                            final bool isSelected = manager.category == catName;
+                            final doc = categoriesDocs[index];
+                            final categoryObj = Category.fromSnapshot(
+                                doc.id, doc.data() as Map<String, dynamic>);
+                            final bool isSelected =
+                                manager.category == categoryObj.name;
 
                             return GestureDetector(
-                              onTap: () => manager.setCategory(catName),
+                              onTap: () =>
+                                  manager.setCategory(categoryObj.name),
                               child: Container(
                                 margin: const EdgeInsets.only(right: 12),
                                 padding: const EdgeInsets.symmetric(
@@ -335,13 +347,12 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(_getIconFromKey(iconKey),
-                                        size: 18,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey[600]),
+                                    Text(
+                                      categoryObj.getEmoji(),
+                                      style: const TextStyle(fontSize: 20),
+                                    ),
                                     const SizedBox(width: 8),
-                                    Text(catName,
+                                    Text(categoryObj.name,
                                         style: TextStyle(
                                             color: isSelected
                                                 ? Colors.white

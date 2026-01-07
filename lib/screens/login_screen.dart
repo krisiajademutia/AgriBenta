@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("Welcome back!"), backgroundColor: Color(0xFF4CAF50)));
+          content: Text("Welcome back!"), backgroundColor: Color(0xFF52B788)));
       Navigator.pushReplacementNamed(context, '/home');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;

@@ -194,7 +194,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
           onPressed: () {
             NotificationManager.markAllAsRead(userId);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("All marked as read")),
+              const SnackBar(
+                  content: Text("All marked as read"),
+                  backgroundColor: Color(0xFF52B788)),
             );
           },
         )
