@@ -285,7 +285,7 @@ class EditProfileScreen extends StatelessWidget {
                                         ),
                                       ],
                                     ),
-                                    backgroundColor: Color(0xFF1B4332), //
+                                    backgroundColor: Color(0xFF52B788), //
                                     behavior: SnackBarBehavior.floating,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),

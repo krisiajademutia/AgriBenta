@@ -45,13 +45,154 @@ class SellerOrdersScreen extends StatelessWidget {
           children: [
             _OrdersList(status: 'pending'),
             _OrdersList(status: 'confirmed'),
-            _OrdersList(status: 'completed'),
+            _CompletedOrdersTab(),
           ],
         ),
       ),
     );
   }
 }
+
+//==================================
+class _CompletedOrdersTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text("Please login"));
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('sellerId', isEqualTo: user.uid)
+          .where('status', isEqualTo: 'completed') // Only Completed
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text("Error: ${snapshot.error}"));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final orders = snapshot.data!.docs;
+
+        // --- 📊 CALCULATE TOTAL SOLD LOGIC ---
+        int totalQuantitySold = 0;
+
+        for (var doc in orders) {
+          final data = doc.data() as Map<String, dynamic>;
+          final List<dynamic> items = data['items'] ?? [];
+
+          // Loop through every item in every order to sum them up
+          for (var item in items) {
+            // Handle cases where quantity might be String or Int
+            int qty = int.tryParse(item['quantity'].toString()) ?? 0;
+            totalQuantitySold += qty;
+          }
+        }
+        // -------------------------------------
+
+        if (orders.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_outlined,
+                    size: 60, color: Colors.grey[300]),
+                const SizedBox(height: 10),
+                Text("No completed sales yet",
+                    style: TextStyle(color: Colors.grey[500])),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF52B788),
+                    Color.fromARGB(255, 77, 179, 131)
+                  ], // Dark Green
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1B4332).withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "TOTAL PRODUCTS SOLD",
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          letterSpacing: 1.0,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        "$totalQuantitySold",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // THE LIST OF ORDERS
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: orders.length,
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+                  return _OrderCard(order: order, status: 'completed');
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+//===================
 
 class _OrdersList extends StatelessWidget {
   final String status;

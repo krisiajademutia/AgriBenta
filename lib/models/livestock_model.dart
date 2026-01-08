@@ -25,7 +25,6 @@ class LivestockVariant {
         'quantity': quantity,
       };
 
-  // --- ADDED THIS METHOD TO FIX THE ERROR ---
   Map<String, dynamic> toMap() {
     return {
       'weight': weight,
@@ -34,7 +33,6 @@ class LivestockVariant {
     };
   }
 
-  // Added helper alias for consistency
   factory LivestockVariant.fromMap(Map<String, dynamic> map) =>
       LivestockVariant.fromJson(map);
 }

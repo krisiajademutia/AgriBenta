@@ -57,7 +57,7 @@ class _EditLivestockScreenState extends State<EditLivestockScreen> {
               ],
             ),
             backgroundColor: Colors.orange[800], // Warning Color
-            duration: const Duration(seconds: 6), // Stay longer so they read it
+            duration: const Duration(seconds: 3), // Stay longer so they read it
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(20),
             shape:

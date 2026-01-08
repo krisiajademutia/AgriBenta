@@ -61,7 +61,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSelected = _currentIndex == index;
     const Color brandGreen = Color(0xFF52B788);
 
-    // --- 1. BADGE LOGIC ---
     // We only want to show the badge for the "Message" tab (index 1)
     Widget iconWidget = Icon(
       isSelected ? iconOn : iconOff,
@@ -117,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         unreadTotal > 9 ? '9+' : '$unreadTotal',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 9, // Small font for the badge
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
                         textAlign: TextAlign.center,
@@ -140,7 +139,6 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // --- 2. USE THE MODIFIED ICON WIDGET ---
             iconWidget,
             const SizedBox(height: 4),
             Text(

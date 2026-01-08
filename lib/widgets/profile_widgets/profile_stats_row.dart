@@ -19,7 +19,7 @@ class ProfileStatsRow extends StatelessWidget {
       child: Row(
         children: [
           _buildStat(
-              'Listings', totalListings.toString(), Icons.layers_outlined),
+              'Available', totalListings.toString(), Icons.layers_outlined),
           const SizedBox(width: 12),
           _buildStat(
               'Sales', totalSales.toString(), Icons.shopping_bag_outlined),

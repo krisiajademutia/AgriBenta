@@ -1,5 +1,3 @@
-//import 'package:flutter/material.dart';
-
 class Category {
   final String id;
   final String name;
@@ -39,12 +37,6 @@ class Category {
         return '📦';
       case 'all':
         return '🏠';
-
-      // Products (kept from your original code just in case)
-      case 'dairy':
-        return '🥛';
-      case 'fresh_egg':
-        return '🥚';
       default:
         return '🐾';
     }

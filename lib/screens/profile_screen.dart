@@ -192,13 +192,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   .where('sellerId', isEqualTo: userId)
                   .snapshots(),
               builder: (context, listingSnapshot) {
-                int totalListings = 0;
+                int totalInventoryCount = 0;
+
                 if (listingSnapshot.hasData) {
-                  totalListings = listingSnapshot.data!.docs.length;
+                  final docs = listingSnapshot.data!.docs;
+                  for (var doc in docs) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    int itemTotal = 0;
+                    // Check if it has variants
+                    if (data['variants'] != null &&
+                        (data['variants'] as List).isNotEmpty) {
+                      final List<dynamic> variants = data['variants'];
+                      for (var v in variants) {
+                        // Sum up the quantity of EACH variant
+                        int qty = int.tryParse(v['quantity'].toString()) ?? 0;
+                        itemTotal += qty;
+                      }
+                    } else {
+                      itemTotal =
+                          int.tryParse(data['quantity'].toString()) ?? 0;
+                      debugPrint(" -> Simple Item. Quantity: $itemTotal");
+                    }
+                    totalInventoryCount += (data['quantity'] as num).toInt();
+                  }
                 }
 
                 return ProfileStatsRow(
-                  totalListings: totalListings,
+                  totalListings: totalInventoryCount,
                   totalSales: totalSales,
                   totalEarnings: totalEarnings,
                 );

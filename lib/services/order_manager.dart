@@ -235,8 +235,9 @@ class OrderManager {
     } catch (e) {
       debugPrint("Order Error: $e");
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Failed to place order: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("Failed to place order: $e"),
+            backgroundColor: Colors.orange[800]));
       }
       return false;
     }

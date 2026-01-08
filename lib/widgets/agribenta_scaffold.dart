@@ -57,8 +57,6 @@ class _AgriBentaScaffoldState extends State<AgriBentaScaffold>
     final size = MediaQuery.of(context).size;
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
-    const Color bgTopGreen = Color(0xFFE8F5E9);
-    const Color bgBottomGreen = Color(0xFFC8E6C9);
     const Color harvestGold = Color(0xFFD4A574);
     const Color brandGreen = Color(0xFF52B788);
     const Color accentGreen = Color(0xFF40916C);
@@ -67,7 +65,6 @@ class _AgriBentaScaffoldState extends State<AgriBentaScaffold>
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // --- ENHANCED GRADIENT BACKGROUND ---
           Container(
             width: size.width,
             height: size.height,
@@ -104,7 +101,6 @@ class _AgriBentaScaffoldState extends State<AgriBentaScaffold>
             size: size,
           ),
 
-          // --- ENHANCED ORGANIC SHAPES ---
           if (widget.showOrganicShapes) ...[
             // Top-right golden orb with float animation
             AnimatedBuilder(

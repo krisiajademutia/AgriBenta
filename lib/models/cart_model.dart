@@ -4,8 +4,6 @@ class CartItem {
   final String id;
   final Livestock livestock;
   int quantity;
-
-  // --- NEW FIELDS FOR VARIANTS ---
   final String selectedWeight;
   final double selectedPrice;
 

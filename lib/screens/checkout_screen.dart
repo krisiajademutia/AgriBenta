@@ -279,9 +279,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // UI BUILD
-  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(

@@ -33,19 +33,17 @@ class LivestockFilterWrapper extends StatelessWidget {
               child: CircularProgressIndicator(color: Color(0xFF52B788)));
         }
 
-        // ERROR
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
         }
 
-        // EMPTY CHECK
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return _buildEmptyState();
         }
 
         final allDocs = snapshot.data!.docs;
 
-        // 3. SEARCH FILTERING (Client Side - Name OR Location)
+        // SEARCH FILTERING (Client Side - Name OR Location)
         final filteredDocs = allDocs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
 

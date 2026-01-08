@@ -118,7 +118,7 @@ class _MarketplaceTabState extends State<MarketplaceTab> {
                 children: [
                   const SizedBox(height: 10),
 
-                  // SEARCH SECTION (Now connected)
+                  // SEARCH SECTION
                   SectionSearch(
                     onSearchChanged: _updateSearchQuery,
                   ),
@@ -133,7 +133,7 @@ class _MarketplaceTabState extends State<MarketplaceTab> {
 
                   const SizedBox(height: 32),
 
-                  // LIST SECTION (Now receives search query)
+                  // LIST SECTION
                   LivestockFilterWrapper(
                     // Key forces a rebuild if category changes, ensuring stream updates
                     key: ValueKey("$_selectedCategoryName-$_searchQuery"),
