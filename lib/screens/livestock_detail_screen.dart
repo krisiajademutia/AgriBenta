@@ -422,7 +422,7 @@ class _LivestockDetailScreenState extends State<LivestockDetailScreen> {
                                 fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 10),
                         _buildSpecRow("Category", widget.livestock.category),
-                        _buildSpecRow("Age", "${widget.livestock.age} months"),
+                        _buildSpecRow("Age", widget.livestock.age),
                         _buildSpecRow("Weight", "$displayWeight kg"),
 
                         // REAL-TIME STOCK DISPLAY
